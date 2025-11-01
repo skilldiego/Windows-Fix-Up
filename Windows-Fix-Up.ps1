@@ -20,6 +20,12 @@ if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     } 
 }
 
+# --- Start Logging ---
+# Create a log file in the same directory as the script
+$LogFile = Join-Path -Path $PSScriptRoot -ChildPath "Windows-Fix-Up_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').log"
+Start-Transcript -Path $LogFile
+# --- End Logging ---
+
 $ProgressPreference = 'SilentlyContinue'
 $LineBreak = "------------------------------------------------------------------"
 
@@ -52,14 +58,13 @@ function Invoke-Task {
 # Start of the cleanup 
 Write-HostTimestamp "Running Windows Fix Up on $($env:ComputerName)..."  -Foreground Yellow
 # Prompt user for confirmation
-Write-HostTimestamp "This script can take several hours to complete and maybe required to be ran twice in order to fix common issues."
-Write-HostTimestamp "It will delete files using Microsoft's Disk Cleanup (excluding the Downloads folder)."
-Write-HostTimestamp "It will install a third-party module ('PSWindowsUpdate') to manage Windows Updates through PowerShell."
-Write-HostTimestamp "It will reset some Windows settings (e.g., network settings) to their defaults."
-$confirmation = Read-Host -Prompt "Do you want to continue? (Y/N)"
-if ($confirmation -notin @('y', 'yes')) {
-    Write-HostTimestamp "Script aborted by user." -ForegroundColor Red
-    Exit
+Invoke-Task -Description "This script can take several hours to complete and maybe required to be ran twice in order to fix common issues." -ScriptBlock {
+    Write-Host "It will delete files using Microsoft's Disk Cleanup (excluding the Downloads folder)."
+    Write-Host "It will install a third-party module ('PSWindowsUpdate') to manage Windows Updates through PowerShell."
+    Write-Host "It will reset some Windows settings (e.g., network settings) to their defaults."
+    Write-Host "Restart is required for all steps of the Fix Up to complete."
+    Write-Host ""
+    $autoRestart = Read-Host -Prompt "Do you want to automatically restart when the script is finished? (Y/N)"
 }
 
 # Windows to run the System File Checker utility - Part 1
@@ -175,16 +180,23 @@ Invoke-Task -Description "Resetting network adapters (Winsock, TCP/IP, DNS cache
 
 # Done
 Write-HostTimestamp "Windows Fix Up completed!" -Foreground Green
-Write-Host "Please restart your computer to complete the CHKDSK"
-Read-Host ">> Press enter to RESTART $($env:COMPUTERNAME) or close out of this window if you want to restart later..."
-(60..1) | ForEach-Object {
-    if ($_ -lt 10){
-        Write-HostTimestamp "Restart in $_ $(if ($_ -eq 1){"second"}else{"seconds"})" -ForegroundColor Yellow
-    } else {
-        if ($_ % 10 -eq 0) {
-        Write-HostTimestamp "Restart in $_ seconds"
+Write-Host "A restart is required to complete the disk check (CHKDSK)."
+if ($autoRestart -in @('y', 'yes')) {
+    (60..1) | ForEach-Object {
+        if ($_ -lt 10){
+            Write-HostTimestamp "Restart in $_ $(if ($_ -eq 1){"second"}else{"seconds"})" -ForegroundColor Yellow
+        } else {
+            if ($_ % 10 -eq 0) {
+            Write-HostTimestamp "Restart in $_ seconds"
+            }
         }
+        Start-Sleep 1
     }
-    Start-Sleep 1
+    shutdown.exe -r -t 5 -c "Restarting to finish fix up..."
+} else {
+    Write-HostTimestamp "Restart not initiated. Please remember to restart your computer manually to complete the repairs." -ForegroundColor Yellow
+    Read-Host -Prompt "Close window or press enter to exit."
 }
-shutdown.exe -r -t 5 -c "Restarting in to finish fix up..."
+
+# Stop logging
+Stop-Transcript
