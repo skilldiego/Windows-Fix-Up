@@ -8,6 +8,7 @@ This PowerShell script automates a sequence of common Windows repair and mainten
 ## ⚠️ Important Warnings
 
 *   **Run as Administrator:** This script requires administrative privileges to perform its tasks. It includes a self-elevation feature to prompt for administrator rights if not already running with them.
+*   **Creates a Log File:** The script automatically creates a detailed log file (e.g., `Windows-Fix-Up_2023-10-27_14-30-00.log`) in the same folder where the script is located.
 *   **Time-Consuming:** The entire process can take **several hours** to complete, depending on the state of your system.
 *   **File Deletion:** The script will run Windows Disk Cleanup and automatically select **all** categories for cleaning, **except for the `Downloads` folder**. Ensure any important files are backed up from temporary locations.
 *   **Third-Party Module:** The script will automatically install the `PSWindowsUpdate` module from the PowerShell Gallery to manage Windows Updates.
@@ -16,7 +17,7 @@ This PowerShell script automates a sequence of common Windows repair and mainten
     *   Windows Update components.
     *   Microsoft Store cache.
     *   Network stack (Winsock, TCP/IP).
-*   **Restart Required:** A system restart is required to complete the disk check (CHKDSK). The script will prompt you to restart at the end and includes a 60-second countdown to an automatic restart.
+*   **Restart Required:** A system restart is required to complete the disk check (CHKDSK). The script will ask you at the beginning if you want to restart automatically when it's done.
 
 ## How to Run This Script
 
@@ -29,6 +30,7 @@ This PowerShell script automates a sequence of common Windows repair and mainten
     ```
     Then, try running the script again. For security, you can revert this change after the script is finished by running `Set-ExecutionPolicy Default -Force`.
 5.  **Confirmation:** The script will display a summary of its actions and ask for your confirmation. Type `Y` and press `Enter` to begin.
+    *   It will first ask if you want to **automatically restart** when the script is complete.
 
 ## What the Script Does
 
@@ -82,3 +84,4 @@ this is a test
 
 14. **Final Restart**
     *   After all tasks are complete, the script prompts for a restart and will automatically reboot the computer after a 60-second countdown to apply the pending CHKDSK and finalize all repairs.
+    *   If you agreed to the automatic restart at the beginning, the script will initiate a 60-second countdown before rebooting. Otherwise, it will remind you to restart manually.
