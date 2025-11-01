@@ -1,0 +1,84 @@
+# Windows Fix-Up Script
+
+> [!NOTE]
+> This script was born out of the necessity for one IT professional to find a lazy-yet-effective way to fix the recurring computer problems of friends and family. Think of it as the "turn it off and on again" of Windows repair, but on steroids. While it's generally safe and has saved countless hours of phone support, please exercise caution when running it in a production or enterprise environment.
+
+This PowerShell script automates a sequence of common Windows repair and maintenance tasks. It is designed to be a comprehensive "fix-it" tool for resolving system instability, update failures, application problems, and file system corruption.
+
+## ⚠️ Important Warnings
+
+*   **Run as Administrator:** This script requires administrative privileges to perform its tasks. It includes a self-elevation feature to prompt for administrator rights if not already running with them.
+*   **Time-Consuming:** The entire process can take **several hours** to complete, depending on the state of your system.
+*   **File Deletion:** The script will run Windows Disk Cleanup and automatically select **all** categories for cleaning, **except for the `Downloads` folder**. Ensure any important files are backed up from temporary locations.
+*   **Third-Party Module:** The script will automatically install the `PSWindowsUpdate` module from the PowerShell Gallery to manage Windows Updates.
+*   **System Resets:** Several system components will be reset to their default configurations, including:
+    *   Windows Management Instrumentation (WMI) repository.
+    *   Windows Update components.
+    *   Microsoft Store cache.
+    *   Network stack (Winsock, TCP/IP).
+*   **Restart Required:** A system restart is required to complete the disk check (CHKDSK). The script will prompt you to restart at the end and includes a 60-second countdown to an automatic restart.
+
+## How to Run This Script
+
+1.  **Save the Script:** Save the script file as `Windows-Fix-Up.ps1` on your computer.
+2.  **Run with PowerShell:** Right-click the `Windows-Fix-Up.ps1` file and select **"Run with PowerShell"**.
+3.  **Administrator Prompt:** If you are not already in an administrative session, a User Account Control (UAC) window will appear. Click **Yes** to allow the script to run with administrative privileges.
+4.  **Execution Policy (If Needed):** If you encounter an error about script execution being disabled, you may need to change the execution policy. Open a new PowerShell window **as an Administrator** and run the following command:
+    ```powershell
+    Set-ExecutionPolicy Bypass -Force
+    ```
+    Then, try running the script again. For security, you can revert this change after the script is finished by running `Set-ExecutionPolicy Default -Force`.
+5.  **Confirmation:** The script will display a summary of its actions and ask for your confirmation. Type `Y` and press `Enter` to begin.
+
+## What the Script Does
+
+The script performs the following actions in sequence to repair and optimize your Windows installation.
+
+1.  **System File Checker (SFC)**
+    *   Runs `sfc /scannow` to scan for and repair corrupted or missing Windows system files.
+
+2.  **WMI Repository Reset**
+    *   Resets the Windows Management Instrumentation (WMI) repository, which can resolve issues with system management tools and services.
+
+3.  **DISM Component Store Cleanup & Repair**
+    *   **Cleanup (`/StartComponentCleanup /ResetBase`):** Cleans up and compresses the component store (WinSxS folder) to save disk space.
+    *   **Health Check (`/CheckHealth` & `/ScanHealth`):** Scans the Windows component store for corruption.
+    *   **Restore Health (`/RestoreHealth`):** Performs repair operations automatically using Windows Update to fix any detected corruption.
+
+4.  **System File Checker (SFC) - Second Pass**
+    *   Runs `sfc /scannow` again to address any issues that may have been uncovered or made fixable by the DISM repairs.
+
+5.  **Disk Check (CHKDSK)**
+    *   Schedules a comprehensive disk check (`chkdsk /f /r`) to run on the C: drive during the next system restart. This finds and repairs file system errors and scans for bad sectors.
+
+6.  **Disk Cleanup**
+    *   Automates the Windows Disk Cleanup utility (`cleanmgr.exe`) to remove temporary files, system logs, old update files, and other unnecessary data. **The Downloads folder is explicitly excluded.**
+
+7.  **Windows Update Module Installation**
+    *   Installs the `PSWindowsUpdate` PowerShell module, which allows for advanced management of Windows Updates via the command line.
+
+8.  **Windows Update Reset**
+    *   Resets the Windows Update components to their default state, which can fix issues with updates failing to download or install.
+this is a test
+9.  **Microsoft Store Reset & Update**
+    *   Clears the Microsoft Store cache (`wsreset.exe`) to resolve problems with apps not downloading or launching.
+    *   Triggers a scan for pending Microsoft Store app updates.
+
+10. **Re-register Windows Apps**
+    *   Attempts to re-register all built-in and installed Microsoft Store (AppX) packages for all users. This can fix issues with modern apps that fail to start or function correctly.
+
+11. **Install Windows Updates**
+    *   Uses the `PSWindowsUpdate` module to check for, download, and install all available updates from Microsoft Update.
+
+12. **Upgrade Applications with Winget**
+    *   If the Windows Package Manager (`winget`) is available, it will attempt to upgrade all installed applications silently. It runs twice to handle dependencies or failed initial attempts.
+
+13. **Network Stack Reset**
+    *   Resets the network configuration to resolve common connectivity issues:
+        *   Resets the Winsock Catalog (`netsh winsock reset`).
+        *   Resets the TCP/IP stack (`netsh int ip reset`).
+        *   Releases and renews the IP address configuration (`ipconfig /release` & `ipconfig /renew`).
+        *   Flushes the DNS resolver cache (`ipconfig /flushdns`).
+
+14. **Final Restart**
+    *   After all tasks are complete, the script prompts for a restart and will automatically reboot the computer after a 60-second countdown to apply the pending CHKDSK and finalize all repairs.
