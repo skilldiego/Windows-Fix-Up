@@ -64,7 +64,7 @@ Invoke-Task -Description "This script can take several hours to complete and may
     Write-Host "It will reset some Windows settings (e.g., network settings) to their defaults."
     Write-Host "Restart is required for all steps of the Fix Up to complete."
     Write-Host ""
-    $autoRestart = Read-Host -Prompt "Do you want to automatically restart when the script is finished? (Y/N)"
+    $Script:autoRestart = Read-Host -Prompt "Do you want to automatically restart when the script is finished? (Y/N)"
 }
 
 # Windows to run the System File Checker utility - Part 1
