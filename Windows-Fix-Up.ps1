@@ -24,24 +24,26 @@ if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 # Create a log file in the same directory as the script
 $LogFile = Join-Path -Path $PSScriptRoot -ChildPath "Windows-Fix-Up_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').log"
 Start-Transcript -Path $LogFile
-# --- End Logging ---
 
 $ProgressPreference = 'SilentlyContinue'
-$LineBreak = "------------------------------------------------------------------"
+$LineBreakCharacter = "-"
+1..$($Host.UI.RawUI.BufferSize.Width) | ForEach-Object {
+    $LineBreak += $LineBreakCharacter
+}
+
+function Get-TimeStamp {
+    return (Get-Date -Format "[MM/dd/yyyy|HH:mm:ss]")
+}
 
 function Write-HostTimestamp {
     param (
         [string]$Message,
-        [consolecolor]$ForegroundColor = "White"
+        [consolecolor]$ForegroundColor = $(try {((Get-Host).ui.rawui.ForegroundColor)} catch {"White"})
     )
 
     # Get the current timestamp and combine it with the user's message.
     # The output is then sent to the console using Write-Host with the specified color.
     Write-Host "$(Get-TimeStamp) $Message" -ForegroundColor $ForegroundColor
-}
-
-function Get-TimeStamp {
-    return (Get-Date -Format "[MM/dd/yyyy|HH:mm:ss]")
 }
 
 function Invoke-Task {
@@ -55,7 +57,7 @@ function Invoke-Task {
     Write-Host $LineBreak
 }
 
-# Start of the cleanup 
+# Start of the Fix Up Script
 Write-HostTimestamp "Running Windows Fix Up on $($env:ComputerName)..."  -Foreground Yellow
 # Prompt user for confirmation
 Invoke-Task -Description "This script can take several hours to complete and maybe required to be ran twice in order to fix common issues." -ScriptBlock {
@@ -192,7 +194,7 @@ Invoke-Task -Description "Resetting network adapters (Winsock, TCP/IP, DNS cache
     ipconfig /flushdns
 }
 
-# Done
+# Done, restart when necessary
 Write-HostTimestamp "Windows Fix Up completed!" -Foreground Green
 Write-Host "A restart is required to complete the disk check (CHKDSK)."
 if ($autoRestart -in @('y', 'yes')) {
@@ -214,3 +216,4 @@ if ($autoRestart -in @('y', 'yes')) {
 
 # Stop logging
 Stop-Transcript
+# --- End Logging ---
