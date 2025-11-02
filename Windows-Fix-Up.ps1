@@ -117,10 +117,19 @@ Invoke-Task -Description "Configuring and running Disk Cleanup for all categorie
     # Run Disk Cleanup with the configured settings
     Start-Process -FilePath "cleanmgr.exe" -ArgumentList "/sagerun:1" -WindowStyle Hidden
     # Due to cleanmgr commonly getting stuck, the following has been added as a workaround
+    # Check for a Window Title, if it exists, Disk Cleanup is still running
     do {
-        $cleanmgr = (Get-Process -Name cleanmgr).TotalProcessorTime
-        Start-Sleep -Seconds 30
-    } Until ($cleanmgr -eq (Get-Process -Name cleanmgr).TotalProcessorTime)
+        Start-Sleep -Seconds 5
+    } Until ([string]::IsNullOrWhiteSpace((Get-Process -Name cleanmgr -ErrorAction SilentlyContinue).MainWindowTitle))
+    Write-Host "Disk Cleanup is almost finished..."
+    # Second checks as dismhost maybe cleaning things as well
+    do {
+        $cleanmgrTime = (Get-Process -Name cleanmgr -ErrorAction SilentlyContinue).TotalProcessorTime
+        $dismHostTime = (Get-Process -Name dismhost -ErrorAction SilentlyContinue).TotalProcessorTime
+        if ($cleanmgrTime -or $dismHostTime){
+            Start-Sleep -Seconds 30
+        }
+    } Until (($cleanmgrTime -eq (Get-Process -Name cleanmgr -ErrorAction SilentlyContinue).TotalProcessorTime) -and ($dismHostTime -eq (Get-Process -Name dismhost -ErrorAction SilentlyContinue).TotalProcessorTime))
     Stop-Process -Name cleanmgr -Force
 }
 
@@ -182,7 +191,6 @@ Invoke-Task -Description "Resetting network adapters (Winsock, TCP/IP, DNS cache
     ipconfig /renew
     ipconfig /flushdns
 }
-
 
 # Done
 Write-HostTimestamp "Windows Fix Up completed!" -Foreground Green
