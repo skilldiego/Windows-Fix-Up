@@ -192,12 +192,7 @@ Invoke-Task -Description 'Configuring and running Disk Cleanup for all categorie
     # Run Disk Cleanup with the configured settings
     Start-Process -FilePath 'cleanmgr.exe' -ArgumentList '/sagerun:1' -WindowStyle Hidden
     # Due to cleanmgr commonly getting stuck, the following has been added as a workaround
-    # Check for a Window Title, if it exists, Disk Cleanup is still running
-    do {
-        Start-Sleep -Seconds 5
-    } until ([string]::IsNullOrWhiteSpace((Get-Process -Name cleanmgr -ErrorAction SilentlyContinue).MainWindowTitle))
-    Write-Host 'Disk Cleanup is almost finished...'
-    # Second checks as dismhost maybe cleaning things as well
+    # Check to see if cleanmgr is doing anything
     do {
         $CleanmgrTime = (Get-Process -Name cleanmgr -ErrorAction SilentlyContinue).TotalProcessorTime
         $DismHostTime = (Get-Process -Name dismhost -ErrorAction SilentlyContinue).TotalProcessorTime
