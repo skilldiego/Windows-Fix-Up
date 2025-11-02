@@ -11,16 +11,22 @@
 # 5.  Revert Execution Policy (Optional): For security, you can revert the execution policy after the script completes by running:
 #     Set-ExecutionPolicy Default -Force
 # -------------------------------------------------
-# Self-elevate the script if required
+# Parameters for the script
 param(
-    [switch]$Unattended,
-    [switch]$AutoReboot
+    [switch]$Unattended, # Runs the script without any user prompts. It will not ask for confirmation to start.
+    [switch]$AutoReboot  # Automatically configures the script to restart the computer upon completion.
 )
 
+# Self-elevate the script if required
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
     if ([int](Get-CimInstance -Class Win32_OperatingSystem | Select-Object -ExpandProperty BuildNumber) -ge 6000) {
-        $CommandLine = "-File `"" + $MyInvocation.MyCommand.Path + "`" " + $MyInvocation.UnboundArguments
-        Start-Process -FilePath PowerShell.exe -Verb Runas -ArgumentList $CommandLine
+        $ArgumentList = @("-File", "`"$($MyInvocation.MyCommand.Path)`"")
+        # Re-add any passed parameters
+        foreach ($Parameter in $PSBoundParameters.Keys) {
+            $ArgumentList += "-$Parameter"
+        }
+
+        Start-Process -FilePath PowerShell.exe -Verb Runas -ArgumentList $ArgumentList
         exit
     } 
 }
