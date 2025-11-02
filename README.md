@@ -30,7 +30,19 @@ This PowerShell script automates a sequence of common Windows repair and mainten
     ```
     Then, try running the script again. For security, you can revert this change after the script is finished by running `Set-ExecutionPolicy Default -Force`.
 5.  **Confirmation:** The script will display a summary of its actions and ask for your confirmation. Type `Y` and press `Enter` to begin.
-    *   It will first ask if you want to **automatically restart** when the script is complete.
+    *   It will ask if you want to **automatically restart** when the script is complete.
+
+## Command-Line Parameters
+
+The script supports the following optional parameters for automation:
+
+*   `-Unattended`: Runs the script without any user prompts. It will not ask for confirmation to start.
+*   `-AutoReboot`: When used with `-Unattended`, this will automatically configure the script to restart the computer upon completion. If used without `-Unattended`, it pre-answers 'Y' to the automatic restart question.
+
+Example of an unattended run with automatic reboot:
+```powershell
+.\Windows-Fix-Up.ps1 -Unattended -AutoReboot
+```
 
 ## What the Script Does
 
@@ -61,7 +73,7 @@ The script performs the following actions in sequence to repair and optimize you
 
 8.  **Windows Update Reset**
     *   Resets the Windows Update components to their default state, which can fix issues with updates failing to download or install.
-this is a test
+
 9.  **Microsoft Store Reset & Update**
     *   Clears the Microsoft Store cache (`wsreset.exe`) to resolve problems with apps not downloading or launching.
     *   Triggers a scan for pending Microsoft Store app updates.
