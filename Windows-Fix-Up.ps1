@@ -112,14 +112,49 @@ if (-not (Test-Path $WindowsDriveLetter)) {
     Start-Sleep -Seconds 10; exit 1
 }
 
+# Verify and Salvage WMI Repository
+Invoke-Task -Description 'Checking the WMI repository if needed...' -ScriptBlock {
+    $WinMgmtOutput = winmgmt.exe /verifyrepository
+    if ($WinMgmtOutput -eq "WMI repository is consistent"){
+        Write-Host "WMI repository appears to be healthy."
+    } else {
+        Write-Host "WMI repository may have issues. Trying to salvage it."
+
+        # Make sure we're set to auto for winmgmt service and start it
+        sc.exe config winmgmt start= Auto
+        net.exe start winmgmt 
+
+        # Running this twice
+        $null = winmgmt.exe /salvagerepository
+        $WinMgmtOutput = winmgmt.exe /salvagerepository
+        if ($WinMgmtOutput -eq "WMI repository is consistent"){
+            Write-Host "WMI repository has been salvaged."
+        } else {
+            Write-Host "WMI repository salvage may have been unsuccessful. Rebuilding WMI repository."
+            $mofcompPath = "$System32Path\wbem\mofcomp.exe"
+            if (Test-Path $mofcompPath){
+                winmgmt.exe /resetrepository
+                Write-HostTimestamp "WMI repository is rebuilding. This can take some time."
+                Get-ChildItem "$System32Path\wbem\*.mof" -File | Where-Object { $_.Name -notmatch 'uninstall|remove' } | ForEach-Object {
+                    Write-Host "Processing $($_.FullName)"
+                    Start-Process -FilePath $mofcompPath -ArgumentList $_.FullName -Wait -WindowStyle Hidden
+                }
+                Get-ChildItem -Path "$System32Path\wbem\en-us\*.mfl" -File | Where-Object { $_.Name -notmatch 'uninstall|remove' } | ForEach-Object {
+                    Write-Host "Processing $($_.FullName)"
+                    Start-Process -FilePath $mofcompPath -ArgumentList $_.FullName -Wait -WindowStyle Hidden
+                }
+                Write-HostTimestamp "WMI repository has been rebuilt."
+            }
+            else {
+                Write-Host "Unable to start WMI repository reset. Missing mofcomp.exe." -ForegroundColor Red
+            }
+        }
+    }
+}
+
 # Windows to run the System File Checker utility - Part 1
 Invoke-Task -Description 'Scanning and repairing system files with SFC...' -ScriptBlock {
     sfc.exe /scannow
-}
-
-# Reset winmgmt Repository
-Invoke-Task -Description 'Resetting and rebuilding the WMI repository...' -ScriptBlock {
-    winmgmt.exe /resetrepository
 }
 
 # Clean up WinSxS
@@ -143,11 +178,6 @@ Invoke-Task -Description 'Repairing the system image with DISM (/RestoreHealth).
 # Windows to run the System File Checker utility - Part 2
 Invoke-Task -Description 'Running SFC again to fix any remaining issues...' -ScriptBlock {
     sfc.exe /scannow
-}
-
-# Run check disk on need startup
-Invoke-Task -Description 'Scheduling a disk check (CHKDSK) for the next restart...' -ScriptBlock {
-    'y' | CHKDSK.exe $WindowsDriveLetter /F /V /R /offlinescanandfix
 }
 
 # Run Disk Cleanup
@@ -204,7 +234,6 @@ else {
     Write-HostTimestamp 'wsreset.exe not found. Skipping Microsoft Store cache reset.' -ForegroundColor Yellow
 }
 
-
 # Reinstall AppX packages
 if (Get-Command Get-AppxPackage -ErrorAction SilentlyContinue) {
     Invoke-Task -Description 'Re-registering all Windows AppX packages for all users...' -ScriptBlock {
@@ -250,6 +279,45 @@ Invoke-Task -Description 'Resetting network adapters (Winsock, TCP/IP, DNS cache
     ipconfig.exe /release
     ipconfig.exe /renew
     ipconfig.exe /flushdns
+}
+
+# Run check disk on need startup
+Invoke-Task -Description 'Scheduling a disk check (CHKDSK) for the next restart...' -ScriptBlock {
+    'y' | CHKDSK.exe $WindowsDriveLetter /F /V /R /offlinescanandfix
+}
+
+# Optimize Windows disk
+Invoke-Task -Description "Optimizing drive $WindowsDriveLetter..." -ScriptBlock {
+    $DriveLetterNoColon = $WindowsDriveLetter.Trim(':')
+    $Disk = $null
+    $retries = 5
+    while ($retries -gt 0 -and -not $Disk) {
+        try {
+            $Disk = Get-Partition -DriveLetter $DriveLetterNoColon -ErrorAction Stop | Get-Disk -ErrorAction Stop | Get-PhysicalDisk -ErrorAction Stop
+        }
+        catch {
+            $null = 'rescan' | diskpart.exe
+            Write-HostTimestamp "Could not get physical disk information. Retrying in 60 seconds... ($retries retries remaining)" -ForegroundColor Yellow
+            Start-Sleep -Seconds 60
+            $retries--
+        }
+    }
+
+    if ($Disk) {
+        if ($Disk.MediaType -eq 'SSD') {
+            Write-HostTimestamp 'Drive is an SSD. Performing trim...'
+            Optimize-Volume -DriveLetter $DriveLetterNoColon -ReTrim -Verbose -ErrorAction Stop
+        }
+        elseif ($Disk.MediaType -eq 'HDD') {
+            Write-HostTimestamp 'Drive is an HDD. Performing defragmentation...'
+            Optimize-Volume -DriveLetter $DriveLetterNoColon -Defrag -Verbose -ErrorAction Stop
+        }
+        else {
+            Write-HostTimestamp 'Drive is unspecified. Skipping disk optimization.' -ForegroundColor Yellow
+        }
+    } else {
+        Write-HostTimestamp "Could not get physical disk information. Skipping disk optimization." -ForegroundColor Yellow
+    }
 }
 
 # Done, restart when necessary
