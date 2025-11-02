@@ -115,7 +115,13 @@ Invoke-Task -Description "Configuring and running Disk Cleanup for all categorie
         }
     }
     # Run Disk Cleanup with the configured settings
-    cleanmgr.exe /sagerun:1
+    Start-Process -FilePath "cleanmgr.exe" -ArgumentList "/sagerun:1" -WindowStyle Hidden
+    # Due to cleanmgr commonly getting stuck, the following has been added as a workaround
+    do {
+        $cleanmgr = (Get-Process -Name cleanmgr).TotalProcessorTime
+        Start-Sleep -Seconds 30
+    } Until ($cleanmgr -eq (Get-Process -Name cleanmgr).TotalProcessorTime)
+    Stop-Process -Name cleanmgr -Force
 }
 
 
@@ -132,7 +138,7 @@ Invoke-Task -Description "Resetting Windows Update components..." -ScriptBlock {
 
 # Reset Windows/Microsoft Store
 Invoke-Task -Description "The Microsoft Store cache will now be cleared and the application will be restarted to resolve any download or launch-related issues." -ScriptBlock {
-    wsreset.exe -i
+    Start-Process -FilePath "wsreset.exe" -ArgumentList "-i" -Wait
 }
 
 # Invoke Windows Store Updates
