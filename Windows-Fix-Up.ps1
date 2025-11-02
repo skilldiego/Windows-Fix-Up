@@ -12,6 +12,11 @@
 #     Set-ExecutionPolicy Default -Force
 # -------------------------------------------------
 # Self-elevate the script if required
+param(
+    [switch]$Unattended,
+    [switch]$AutoReboot
+)
+
 if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
     if ([int](Get-CimInstance -Class Win32_OperatingSystem | Select-Object -ExpandProperty BuildNumber) -ge 6000) {
      $CommandLine = "-File `"" + $MyInvocation.MyCommand.Path + "`" " + $MyInvocation.UnboundArguments
@@ -59,14 +64,22 @@ function Invoke-Task {
 
 # Start of the Fix Up Script
 Write-HostTimestamp "Running Windows Fix Up on $($env:ComputerName)..."  -Foreground Yellow
-# Prompt user for confirmation
-Invoke-Task -Description "This script can take several hours to complete and maybe required to be ran twice in order to fix common issues." -ScriptBlock {
-    Write-Host "It will delete files using Microsoft's Disk Cleanup (excluding the Downloads folder)."
-    Write-Host "It will install a third-party module ('PSWindowsUpdate') to manage Windows Updates through PowerShell."
-    Write-Host "It will reset some Windows settings (e.g., network settings) to their defaults."
-    Write-Host "Restart is required for all steps of the Fix Up to complete."
-    Write-Host ""
-    $Script:autoRestart = Read-Host -Prompt "Do you want to automatically restart when the script is finished? (Y/N)"
+
+if ($Unattended) {
+    Write-HostTimestamp "Running in Unattended mode. User prompts will be skipped." -ForegroundColor Cyan
+    if ($AutoReboot) {
+        $Script:autoRestart = 'y'
+    }
+} else {
+    # Prompt user for confirmation
+    Invoke-Task -Description "This script can take several hours to complete and maybe required to be ran twice in order to fix common issues." -ScriptBlock {
+        Write-Host "It will delete files using Microsoft's Disk Cleanup (excluding the Downloads folder)."
+        Write-Host "It will install a third-party module ('PSWindowsUpdate') to manage Windows Updates through PowerShell."
+        Write-Host "It will reset some Windows settings (e.g., network settings) to their defaults."
+        Write-Host "Restart is required for all steps of the Fix Up to complete."
+        Write-Host ""
+        if ($AutoReboot) { $Script:autoRestart = 'y' } else { $Script:autoRestart = Read-Host -Prompt "Do you want to automatically restart when the script is finished? (Y/N)" }
+    }
 }
 
 # Windows to run the System File Checker utility - Part 1
@@ -211,7 +224,9 @@ if ($autoRestart -in @('y', 'yes')) {
     shutdown.exe -r -t 5 -c "Restarting to finish fix up..."
 } else {
     Write-HostTimestamp "Restart not initiated. Please remember to restart your computer manually to complete the repairs." -ForegroundColor Yellow
-    Read-Host -Prompt "Close window or press enter to exit."
+    if (-not $Unattended) {
+        Read-Host -Prompt "Close window or press enter to exit."
+    }
 }
 
 # Stop logging
