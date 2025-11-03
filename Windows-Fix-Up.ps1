@@ -14,7 +14,8 @@
 # Parameters for the script
 param(
     [switch]$Unattended, # Runs the script without any user prompts. It will not ask for confirmation to start.
-    [switch]$AutoReboot  # Automatically configures the script to restart the computer upon completion.
+    [switch]$AutoReboot, # Automatically configures the script to restart the computer upon completion.
+    [switch]$ResetWMI    # Forces a rebuild of the WMI repository without attempting to salvage it first.
 )
 
 # Self-elevate the script if required
@@ -34,10 +35,11 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 # --- Start Logging ---
 # Create a log file in the same directory as the script
 $LogFile = Join-Path -Path $PSScriptRoot -ChildPath "Windows-Fix-Up_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').log"
-Start-Transcript -Path $LogFile
+Start-Transcript -Path $LogFile | Out-Null
 
 $ProgressPreference = 'SilentlyContinue'
 $LineBreakCharacter = '-'
+$LineBreak = $null
 1..$($Host.UI.RawUI.BufferSize.Width) | ForEach-Object {
     $LineBreak += $LineBreakCharacter
 }
@@ -70,6 +72,7 @@ function Invoke-Task {
 
 # Start of the Fix Up Script
 Write-HostTimestamp "Running Windows Fix Up on $($env:ComputerName)..." -Foreground Yellow
+Write-Host $LineBreak
 
 if ($Unattended) {
     Write-HostTimestamp 'Running in Unattended mode. User prompts will be skipped.' -ForegroundColor Cyan
@@ -79,11 +82,9 @@ if ($Unattended) {
 }
 else {
     # Prompt user for confirmation
-    Invoke-Task -Description 'This script can take several hours to complete and maybe required to be ran twice in order to fix common issues.' -ScriptBlock {
-        Write-Host "It will delete files using Microsoft's Disk Cleanup (excluding the Downloads folder)."
-        Write-Host "It will install a third-party module ('PSWindowsUpdate') to manage Windows Updates through PowerShell."
-        Write-Host 'It will reset some Windows settings (e.g., network settings) to their defaults.'
-        Write-Host 'Restart is required for all steps of the Fix Up to complete.'
+    Invoke-Task -Description 'Can take SEVERAL hours to complete and maybe required to be ran twice to completely fix issues.' -ScriptBlock {
+        Write-Host 'NOTE: This script will reset some Windows components to defaults and run Disk Cleanup clearing old files.' -ForegroundColor Yellow
+        Write-Host 'Please ensure you have backed up any important files...'
         Write-Host
         if ($AutoReboot) { $Script:AutoRestart = 'y' } else { $Script:AutoRestart = Read-Host -Prompt 'Do you want to automatically restart when the script is finished? (Y/N)' }
     }
@@ -113,40 +114,63 @@ if (-not (Test-Path $WindowsDriveLetter)) {
 }
 
 # Verify and Salvage WMI Repository
-Invoke-Task -Description 'Checking the WMI repository if needed...' -ScriptBlock {
-    $WinMgmtOutput = winmgmt.exe /verifyrepository
-    if ($WinMgmtOutput -eq "WMI repository is consistent"){
-        Write-Host "WMI repository appears to be healthy."
-    } else {
-        Write-Host "WMI repository may have issues. Trying to salvage it."
+Invoke-Task -Description 'Checking and repairing the WMI repository...' -ScriptBlock {
+    try {
+        $wmiService = Get-Service -Name winmgmt -ErrorAction Stop
+        if ($wmiService.StartType -ne 'Automatic') {
+            Write-HostTimestamp "Setting WMI service (winmgmt) to Automatic startup."
+            Set-Service -Name winmgmt -StartupType Automatic
+        }
+        if ($wmiService.Status -ne 'Running') {
+            Write-HostTimestamp "Starting WMI service (winmgmt)."
+            Start-Service -Name winmgmt
+            Start-Sleep -Seconds 5 # Give it a moment to start up
+        }
+    }
+    catch {
+        Write-HostTimestamp "Could not find or manage the WMI service (winmgmt). WMI checks might fail." -ForegroundColor Red
+    }
 
-        # Make sure we're set to auto for winmgmt service and start it
-        sc.exe config winmgmt start= Auto
-        net.exe start winmgmt 
-
-        # Running this twice
-        $null = winmgmt.exe /salvagerepository
-        $WinMgmtOutput = winmgmt.exe /salvagerepository
-        if ($WinMgmtOutput -eq "WMI repository is consistent"){
-            Write-Host "WMI repository has been salvaged."
-        } else {
-            Write-Host "WMI repository salvage may have been unsuccessful. Rebuilding WMI repository."
-            $mofcompPath = "$System32Path\wbem\mofcomp.exe"
-            if (Test-Path $mofcompPath){
-                winmgmt.exe /resetrepository
-                Write-HostTimestamp "WMI repository is rebuilding. This can take some time."
-                Get-ChildItem "$System32Path\wbem\*.mof" -File | Where-Object { $_.Name -notmatch 'uninstall|remove' } | ForEach-Object {
-                    Write-Host "Processing $($_.FullName)"
-                    Start-Process -FilePath $mofcompPath -ArgumentList $_.FullName -Wait -WindowStyle Hidden
-                }
-                Get-ChildItem -Path "$System32Path\wbem\en-us\*.mfl" -File | Where-Object { $_.Name -notmatch 'uninstall|remove' } | ForEach-Object {
-                    Write-Host "Processing $($_.FullName)"
-                    Start-Process -FilePath $mofcompPath -ArgumentList $_.FullName -Wait -WindowStyle Hidden
-                }
-                Write-HostTimestamp "WMI repository has been rebuilt."
+    function Start-BuildWMI {
+        Write-Host "Rebuilding WMI repository."
+        $mofcompPath = "$System32Path\wbem\mofcomp.exe"
+        if (Test-Path $mofcompPath) {
+            winmgmt.exe /resetrepository
+            Write-HostTimestamp "WMI repository is rebuilding. This can take some time."
+            Get-ChildItem "$System32Path\wbem\*.mof" -File | Where-Object { $_.Name -notmatch 'uninstall|remove' } | ForEach-Object {
+                Write-Host "Processing $($_.FullName)"
+                Start-Process -FilePath $mofcompPath -ArgumentList $_.FullName -Wait -WindowStyle Hidden
+            }
+            Get-ChildItem -Path "$System32Path\wbem\en-us\*.mfl" -File | Where-Object { $_.Name -notmatch 'uninstall|remove' } | ForEach-Object {
+                Write-Host "Processing $($_.FullName)"
+                Start-Process -FilePath $mofcompPath -ArgumentList $_.FullName -Wait -WindowStyle Hidden
+            }
+            Write-HostTimestamp "WMI repository has been rebuilt."
+        }
+        else {
+            Write-Host "Unable to start WMI repository reset. Missing mofcomp.exe." -ForegroundColor Red
+        }
+    }
+    
+    if ($ResetWMI) {
+        Write-HostTimestamp "-ResetWMI switch detected. Forcing WMI repository rebuild." -ForegroundColor Cyan
+        Start-BuildWMI
+    }
+    else {
+        $WinMgmtOutput = winmgmt.exe /verifyrepository
+        if ($WinMgmtOutput -eq 'WMI repository is consistent') {
+            Write-Host 'WMI repository appears to be healthy.'
+        }
+        else {
+            Write-Host 'WMI repository may have issues. Trying to salvage it.'
+            $null = winmgmt.exe /salvagerepository # Run salvage twice for good measure
+            $WinMgmtOutput = winmgmt.exe /salvagerepository
+            if ($WinMgmtOutput -eq 'WMI repository is consistent') {
+                Write-Host 'WMI repository has been salvaged.'
             }
             else {
-                Write-Host "Unable to start WMI repository reset. Missing mofcomp.exe." -ForegroundColor Red
+                Write-Host 'WMI repository salvage was unsuccessful.'
+                Start-BuildWMI
             }
         }
     }
@@ -205,13 +229,30 @@ Invoke-Task -Description 'Configuring and running Disk Cleanup for all categorie
 
 # Install Windows Update Module
 Invoke-Task -Description "Installing the 'PSWindowsUpdate' PowerShell module..." -ScriptBlock {
-    Install-PackageProvider -Name NuGet -Force -ForceBootstrap
-    Install-Module PSWindowsUpdate -Force -Confirm:$false
+    if (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue) {
+        Write-HostTimestamp "NuGet package provider is installed. Updating it..."
+    } else {
+        Write-HostTimestamp "NuGet package provider needs to be installed..."
+        Install-PackageProvider -Name NuGet -Force -ForceBootstrap
+    }
+    if (Get-Module -ListAvailable -Name PSWindowsUpdate) {
+        Write-HostTimestamp "PSWindowsUpdate module is already installed. Checking for updates..."
+        Update-Module -Name PSWindowsUpdate -Force -Confirm:$false
+    }
+    else {
+        Install-Module -Name PSWindowsUpdate -Force -Confirm:$false
+    }
+    Import-Module -Name PSWindowsUpdate -Force
 }
 
 # Reset Windows Update Services
 Invoke-Task -Description 'Resetting Windows Update components...' -ScriptBlock {
-    Reset-WUComponents
+    if (Get-Command Reset-WUComponents -ErrorAction SilentlyContinue) {
+        Reset-WUComponents
+    }
+    else {
+        Write-HostTimestamp "Command 'Reset-WUComponents' not found. Skipping Windows Update component reset." -ForegroundColor Yellow
+    }
 }
 
 # Reset Windows/Microsoft Store
@@ -249,7 +290,12 @@ else {
 
 # Install Windows Updates
 Invoke-Task -Description 'Checking for and installing Windows Updates...' -ScriptBlock {
-    Get-WindowsUpdate -AcceptAll -Install -IgnoreReboot -MicrosoftUpdate
+    if (Get-Command Get-WindowsUpdate -ErrorAction SilentlyContinue) {
+        Get-WindowsUpdate -AcceptAll -Install -IgnoreReboot -MicrosoftUpdate
+    }
+    else {
+        Write-HostTimestamp "Command 'Get-WindowsUpdate' not found. Skipping Windows Update installation." -ForegroundColor Yellow
+    }
 }
 
 # Install latest version of apps
@@ -291,6 +337,7 @@ Invoke-Task -Description "Optimizing drive $WindowsDriveLetter..." -ScriptBlock 
             $Disk = Get-Partition -DriveLetter $DriveLetterNoColon -ErrorAction Stop | Get-Disk -ErrorAction Stop | Get-PhysicalDisk -ErrorAction Stop
         }
         catch {
+            # With the rebuild of the WMI, this may require some waiting
             $null = 'rescan' | diskpart.exe
             Write-HostTimestamp "Could not get physical disk information. Retrying in 60 seconds... ($retries retries remaining)" -ForegroundColor Yellow
             Start-Sleep -Seconds 60

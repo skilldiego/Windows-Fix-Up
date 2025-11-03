@@ -38,10 +38,11 @@ The script supports the following optional parameters for automation:
 
 *   `-Unattended`: Runs the script without any user prompts. It will not ask for confirmation to start.
 *   `-AutoReboot`: When used with `-Unattended`, this will automatically configure the script to restart the computer upon completion. If used without `-Unattended`, it pre-answers 'Y' to the automatic restart question.
+*   `-ResetWMI`: Forces a rebuild of the WMI repository without attempting to salvage it first. This can be useful if you suspect deep-rooted WMI corruption.
 
 Example of an unattended run with automatic reboot:
 ```powershell
-.\Windows-Fix-Up.ps1 -Unattended -AutoReboot
+.\Windows-Fix-Up.ps1 -Unattended -AutoReboot -ResetWMI
 ```
 
 ## What the Script Does
