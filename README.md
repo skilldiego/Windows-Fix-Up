@@ -65,9 +65,10 @@ The script performs the following actions in sequence to repair and optimize you
 
 5.  **Disk Cleanup**
     *   Automates the Windows Disk Cleanup utility (`cleanmgr.exe`) to remove temporary files, system logs, old update files, and other unnecessary data. **The Downloads folder is explicitly excluded.**
+    *   The script includes a monitor to prevent the Disk Cleanup process from getting stuck indefinitely.
 
 6.  **Windows Update Module Installation**
-    *   Installs the `PSWindowsUpdate` PowerShell module, which allows for advanced management of Windows Updates via the command line.
+    *   Installs or updates the `PSWindowsUpdate` PowerShell module, which allows for advanced management of Windows Updates via the command line. It also ensures the required `NuGet` package provider is present.
 
 7.  **Windows Update Reset**
     *   Resets the Windows Update components to their default state, which can fix issues with updates failing to download or install.
@@ -100,5 +101,8 @@ The script performs the following actions in sequence to repair and optimize you
     *   If it's an SSD, it performs a re-trim operation (`Optimize-Volume -ReTrim`).
     *   If it's an HDD, it performs a defragmentation (`Optimize-Volume -Defrag`).
 
-15. **Final Restart**
+15. **Windows Search Index Reset**
+    *   Stops the Windows Search service, deletes the index database files to clear out corruption, and then restarts the service to allow it to rebuild the index in the background.
+
+16. **Final Restart**
     *   If you agreed to the automatic restart at the beginning or used the `-AutoReboot` parameter, the script will initiate a 60-second countdown before rebooting. Otherwise, it will remind you to restart manually.
