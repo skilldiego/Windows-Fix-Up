@@ -362,6 +362,42 @@ Invoke-Task -Description "Optimizing drive $WindowsDriveLetter..." -ScriptBlock 
     }
 }
 
+# Clear Windows Search Index
+Invoke-Task -Description 'Clearing Windows Search Index...' -ScriptBlock {
+    try {
+        Write-HostTimestamp 'Stopping and disabling the Windows Search service to rebuild the index...'
+        Set-Service -Name WSearch -StartupType Disabled -ErrorAction Stop
+        Stop-Service -Name WSearch -Force -ErrorAction Stop
+
+        $SearchDbPath = "$env:ProgramData\Microsoft\Search\Data\Applications\Windows"
+        $DbFile = Join-Path -Path $SearchDbPath -ChildPath 'Windows.db'
+        $GatherDbFile = Join-Path -Path $SearchDbPath -ChildPath 'Windows-gather.db'
+
+        Write-HostTimestamp 'Deleting Windows Search database files...'
+        Remove-Item -Path $DbFile -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path $GatherDbFile -Force -ErrorAction SilentlyContinue
+
+        Write-HostTimestamp 'Setting Windows Search service to Automatic and starting it...'
+        Set-Service -Name WSearch -StartupType Automatic -ErrorAction Stop
+        # Attempt to start the service multiple times if it fails initially
+        $maxRetries = 5
+        $retryCount = 0
+        while ((Get-Service -Name WSearch).Status -ne 'Running' -and $retryCount -lt $maxRetries) {
+            $retryCount++
+            Write-HostTimestamp "Attempting to start Windows Search service (Attempt $retryCount/$maxRetries)..."
+            Start-Service -Name WSearch -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+            Start-Sleep -Seconds 10
+        }
+        if ((Get-Service -Name WSearch).Status -ne 'Running') {
+            throw "Failed to start Windows Search service after $maxRetries attempts."
+        }
+        Write-HostTimestamp 'Windows Search index will be rebuilt in the background.'
+    }
+    catch {
+        Write-HostTimestamp "Could not reset the Windows Search Index. The service may not be installed or is in a bad state. Error: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
 # Done, restart when necessary
 Write-HostTimestamp 'Windows Fix Up completed!' -Foreground Green
 Write-Host 'A restart is required to complete the disk check (CHKDSK).'
