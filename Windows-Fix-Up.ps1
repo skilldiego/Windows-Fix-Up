@@ -227,10 +227,25 @@ Invoke-Task -Description 'Configuring and running Disk Cleanup for all categorie
     Stop-Process -Name cleanmgr -Force
 }
 
+# Clearing print jobs and restarting print spooler
+Invoke-Task -Description 'Running fixes on the Print Spooler...' -ScriptBlock {
+    if (Get-Service "spooler" -ErrorAction SilentlyContinue) { 
+        Stop-Service "spooler" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 5
+        if (Test-Path "$System32Path\spool\PRINTERS\*") {
+            Write-HostTimestamp "Found left over print jobs. Removing them..."
+            Remove-Item -Path "$System32Path\spool\PRINTERS\*" -ErrorAction SilentlyContinue
+        }
+        Start-Service "spooler" -ErrorAction SilentlyContinue
+    } else {
+        Write-HostTimestamp "Unable to find Print Spooler service. Skipping Print Spooler fixes." -ForegroundColor Yellow
+    }
+}
+
 # Install Windows Update Module
 Invoke-Task -Description "Installing the 'PSWindowsUpdate' PowerShell module..." -ScriptBlock {
     if (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue) {
-        Write-HostTimestamp "NuGet package provider is installed. Updating it..."
+        Write-HostTimestamp "NuGet package provider is installed..."
     } else {
         Write-HostTimestamp "NuGet package provider needs to be installed..."
         Install-PackageProvider -Name NuGet -Force -ForceBootstrap

@@ -70,39 +70,42 @@ The script performs the following actions in sequence to repair and optimize you
 6.  **Windows Update Module Installation**
     *   Installs or updates the `PSWindowsUpdate` PowerShell module, which allows for advanced management of Windows Updates via the command line. It also ensures the required `NuGet` package provider is present.
 
-7.  **Windows Update Reset**
-    *   Resets the Windows Update components to their default state, which can fix issues with updates failing to download or install.
+7.  **Print Spooler Reset**
+    *   Stops the Print Spooler service, clears out any stuck print jobs from the `C:\Windows\System32\spool\PRINTERS` directory, and then restarts the service. This can resolve issues where printers are offline or jobs won't print.
 
-8.  **Microsoft Store Reset & Update**
+8.  **Windows Update Reset**
+    *   Installs or updates the `PSWindowsUpdate` PowerShell module, which allows for advanced management of Windows Updates via the command line. It also ensures the required `NuGet` package provider is present.
+
+9.  **Microsoft Store Reset & Update**
     *   Clears the Microsoft Store cache (`wsreset.exe`) to resolve problems with apps not downloading or launching.
     *   Triggers a scan for pending Microsoft Store app updates.
 
-9.  **Re-register Windows Apps**
+10. **Re-register Windows Apps**
     *   Attempts to re-register all built-in and installed Microsoft Store (AppX) packages for all users. This can fix issues with modern apps that fail to start or function correctly.
 
-10. **Install Windows Updates**
+11. **Install Windows Updates**
     *   Uses the `PSWindowsUpdate` module to check for, download, and install all available updates from Microsoft Update.
 
-11. **Upgrade Applications with Winget**
+12. **Upgrade Applications with Winget**
     *   If the Windows Package Manager (`winget`) is available and the script is not running as the SYSTEM account, it will attempt to upgrade all installed applications silently. It runs twice to handle dependencies or failed initial attempts.
 
-12. **Network Stack Reset**
+13. **Network Stack Reset**
     *   Resets the network configuration to resolve common connectivity issues:
         *   Resets the Winsock Catalog (`netsh winsock reset`).
         *   Resets the TCP/IP stack (`netsh int ip reset`).
         *   Releases and renews the IP address configuration (`ipconfig /release` & `ipconfig /renew`).
         *   Flushes the DNS resolver cache (`ipconfig /flushdns`).
 
-13. **Disk Check (CHKDSK)**
+14. **Disk Check (CHKDSK)**
     *   Schedules a comprehensive disk check (`chkdsk /f /r`) to run on the C: drive during the next system restart. This finds and repairs file system errors and scans for bad sectors.
 
-14. **Disk Optimization**
+15. **Disk Optimization**
     *   Checks the media type of the system drive.
     *   If it's an SSD, it performs a re-trim operation (`Optimize-Volume -ReTrim`).
     *   If it's an HDD, it performs a defragmentation (`Optimize-Volume -Defrag`).
 
-15. **Windows Search Index Reset**
+16. **Windows Search Index Reset**
     *   Stops the Windows Search service, deletes the index database files to clear out corruption, and then restarts the service to allow it to rebuild the index in the background.
 
-16. **Final Restart**
+17. **Final Restart**
     *   If you agreed to the automatic restart at the beginning or used the `-AutoReboot` parameter, the script will initiate a 60-second countdown before rebooting. Otherwise, it will remind you to restart manually.
