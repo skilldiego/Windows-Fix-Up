@@ -234,8 +234,9 @@ Invoke-Task -Description 'Running fixes on the Print Spooler...' -ScriptBlock {
         Start-Sleep -Seconds 5
         if (Test-Path "$System32Path\spool\PRINTERS\*") {
             Write-HostTimestamp "Found left over print jobs. Removing them..."
-            Remove-Item -Path "$System32Path\spool\PRINTERS\*" -ErrorAction SilentlyContinue
+            Remove-Item -Path "$System32Path\spool\PRINTERS\*" -Force -ErrorAction SilentlyContinue
         }
+        Set-Service -Name "spooler" -StartupType Automatic -ErrorAction SilentlyContinue
         Start-Service "spooler" -ErrorAction SilentlyContinue
     } else {
         Write-HostTimestamp "Unable to find Print Spooler service. Skipping Print Spooler fixes." -ForegroundColor Yellow
