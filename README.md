@@ -39,7 +39,7 @@ The script supports the following optional parameters for automation:
 *   `-Unattended`: Runs the script without any user prompts. It will not ask for confirmation to start.
 *   `-AutoReboot`: When used with `-Unattended`, this will automatically configure the script to restart the computer upon completion. If used without `-Unattended`, it pre-answers 'Y' to the automatic restart question.
 *   `-ResetWMI`: Forces a rebuild of the WMI repository without attempting to salvage it first. This can be useful if you suspect deep-rooted WMI corruption.
-*   `-DisableHibernation`: Disables hibernation and fast startup by running `powercfg.exe /hibernate off`.
+*   `-DisableHibernation`: Disables hibernation and fast startup by running `powercfg.exe /hibernate off`. See [Why Disable Hibernation and Fast Startup?](#why-disable-hibernation-and-fast-startup) for more details.
 
 Example of an unattended run with automatic reboot:
 ```powershell
@@ -100,15 +100,6 @@ The script performs the following actions in sequence to repair and optimize you
 14. **Disable Hibernation (Optional)**
     *   If the `-DisableHibernation` parameter is used, this step will turn off hibernation, delete the `hiberfil.sys` file, and disable Windows Fast Startup.
 
-### Why Disable Hibernation and Fast Startup?
-
-Windows Fast Startup doesn't fully shut down the system. Instead, it hibernates the core operating system to speed up the next boot. While fast, this can cause issues with drivers, software updates, and dual-booting environments because the system never gets a completely fresh start. Disabling it provides several benefits:
-
-*   **Ensures a True "Fresh Start":** Forces a full shutdown, which can resolve persistent driver and software glitches that survive a normal reboot.
-*   **Improves Update Reliability:** A full shutdown allows system files to be properly replaced during updates, preventing common failures.
-*   **Frees Up Disk Space:** Deletes the `hiberfil.sys` file, reclaiming several gigabytes of space on your system drive.
-*   **Aids Dual-Booting:** Prevents file system corruption issues when accessing the Windows partition from another operating system (like Linux).
-
 15. **Disk Check (CHKDSK)**
     *   Schedules a comprehensive disk check (`chkdsk /f /r`) to run on the C: drive during the next system restart. This finds and repairs file system errors and scans for bad sectors.
 
@@ -122,3 +113,16 @@ Windows Fast Startup doesn't fully shut down the system. Instead, it hibernates 
 
 18. **Final Restart**
     *   If you agreed to the automatic restart at the beginning or used the `-AutoReboot` parameter, the script will initiate a 60-second countdown before rebooting. Otherwise, it will remind you to restart manually.
+
+### Why Disable Hibernation and Fast Startup?
+
+> [!NOTE]
+> This action is only performed if you use the `-DisableHibernation` switch. It is not enabled by default because some users, particularly on laptops, rely on hibernation to save their session and conserve battery. Disabling it can also sometimes interfere with power management features on certain hardware.
+
+Windows Fast Startup doesn't fully shut down the system. Instead, it hibernates the core operating system to speed up the next boot. While fast, this can cause issues with drivers, software updates, and dual-booting environments because the system never gets a completely fresh start. Disabling it provides several benefits:
+
+*   **Ensures a True "Fresh Start":** Forces a full shutdown, which can resolve persistent driver and software glitches that survive a normal reboot.
+*   **Improves Update Reliability:** A full shutdown allows system files to be properly replaced during updates, preventing common failures.
+*   **Fixes Driver State Issues:** Because drivers are fully re-initialized on a cold boot, this can resolve odd hardware behavior. Note that on the first restart after disabling hibernation, display settings (like resolution or multi-monitor arrangement) may temporarily change before correcting themselves.
+*   **Frees Up Disk Space:** Deletes the `hiberfil.sys` file, reclaiming several gigabytes of space on your system drive.
+*   **Aids Dual-Booting:** Prevents file system corruption issues when accessing the Windows partition from another operating system (like Linux).
