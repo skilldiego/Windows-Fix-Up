@@ -39,6 +39,7 @@ The script supports the following optional parameters for automation:
 *   `-Unattended`: Runs the script without any user prompts. It will not ask for confirmation to start.
 *   `-AutoReboot`: When used with `-Unattended`, this will automatically configure the script to restart the computer upon completion. If used without `-Unattended`, it pre-answers 'Y' to the automatic restart question.
 *   `-ResetWMI`: Forces a rebuild of the WMI repository without attempting to salvage it first. This can be useful if you suspect deep-rooted WMI corruption.
+*   `-DisableHibernation`: Disables hibernation and fast startup by running `powercfg.exe /hibernate off`.
 
 Example of an unattended run with automatic reboot:
 ```powershell
@@ -74,7 +75,7 @@ The script performs the following actions in sequence to repair and optimize you
     *   Stops the Print Spooler service, clears out any stuck print jobs from the `C:\Windows\System32\spool\PRINTERS` directory, and then restarts the service. This can resolve issues where printers are offline or jobs won't print.
 
 8.  **Windows Update Reset**
-    *   Installs or updates the `PSWindowsUpdate` PowerShell module, which allows for advanced management of Windows Updates via the command line. It also ensures the required `NuGet` package provider is present.
+    *   Uses the `Reset-WUComponents` command from the `PSWindowsUpdate` module to stop Windows Update services, rename the `SoftwareDistribution` and `catroot2` folders, and re-register necessary DLLs. This resolves many common update failures.
 
 9.  **Microsoft Store Reset & Update**
     *   Clears the Microsoft Store cache (`wsreset.exe`) to resolve problems with apps not downloading or launching.
@@ -96,16 +97,28 @@ The script performs the following actions in sequence to repair and optimize you
         *   Releases and renews the IP address configuration (`ipconfig /release` & `ipconfig /renew`).
         *   Flushes the DNS resolver cache (`ipconfig /flushdns`).
 
-14. **Disk Check (CHKDSK)**
+14. **Disable Hibernation (Optional)**
+    *   If the `-DisableHibernation` parameter is used, this step will turn off hibernation, delete the `hiberfil.sys` file, and disable Windows Fast Startup.
+
+### Why Disable Hibernation and Fast Startup?
+
+Windows Fast Startup doesn't fully shut down the system. Instead, it hibernates the core operating system to speed up the next boot. While fast, this can cause issues with drivers, software updates, and dual-booting environments because the system never gets a completely fresh start. Disabling it provides several benefits:
+
+*   **Ensures a True "Fresh Start":** Forces a full shutdown, which can resolve persistent driver and software glitches that survive a normal reboot.
+*   **Improves Update Reliability:** A full shutdown allows system files to be properly replaced during updates, preventing common failures.
+*   **Frees Up Disk Space:** Deletes the `hiberfil.sys` file, reclaiming several gigabytes of space on your system drive.
+*   **Aids Dual-Booting:** Prevents file system corruption issues when accessing the Windows partition from another operating system (like Linux).
+
+15. **Disk Check (CHKDSK)**
     *   Schedules a comprehensive disk check (`chkdsk /f /r`) to run on the C: drive during the next system restart. This finds and repairs file system errors and scans for bad sectors.
 
-15. **Disk Optimization**
+16. **Disk Optimization**
     *   Checks the media type of the system drive.
     *   If it's an SSD, it performs a re-trim operation (`Optimize-Volume -ReTrim`).
     *   If it's an HDD, it performs a defragmentation (`Optimize-Volume -Defrag`).
 
-16. **Windows Search Index Reset**
-    *   Stops the Windows Search service, deletes the index database files to clear out corruption, and then restarts the service to allow it to rebuild the index in the background.
+17. **Windows Search Index Reset**
+    *   Stops and temporarily disables the Windows Search service, deletes the index database files (`Windows.db`) to clear out corruption, and then re-enables and restarts the service to allow it to rebuild the index from scratch in the background.
 
-17. **Final Restart**
+18. **Final Restart**
     *   If you agreed to the automatic restart at the beginning or used the `-AutoReboot` parameter, the script will initiate a 60-second countdown before rebooting. Otherwise, it will remind you to restart manually.

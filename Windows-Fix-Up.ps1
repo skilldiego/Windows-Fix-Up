@@ -15,7 +15,8 @@
 param(
     [switch]$Unattended, # Runs the script without any user prompts. It will not ask for confirmation to start.
     [switch]$AutoReboot, # Automatically configures the script to restart the computer upon completion.
-    [switch]$ResetWMI    # Forces a rebuild of the WMI repository without attempting to salvage it first.
+    [switch]$ResetWMI,    # Forces a rebuild of the WMI repository without attempting to salvage it first.
+    [switch]$DisableHibernation # Disables hibernation and fast boot.
 )
 
 # Self-elevate the script if required
@@ -336,6 +337,13 @@ Invoke-Task -Description 'Resetting network adapters (Winsock, TCP/IP, DNS cache
     ipconfig.exe /release
     ipconfig.exe /renew
     ipconfig.exe /flushdns
+}
+
+# Disable Hibernation and Fast Boot
+if ($DisableHibernation) {
+    Invoke-Task -Description 'Disabling hibernation and fast boot...' -ScriptBlock {
+        powercfg.exe /hibernate off
+    }
 }
 
 # Run check disk on need startup
