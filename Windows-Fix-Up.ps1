@@ -19,6 +19,24 @@ param(
     [switch]$DisableHibernation # Disables hibernation and fast boot.
 )
 
+# Verify this is running on PowerShell 5 or higher
+if ($PSVersionTable.PSVersion.Major -lt 5) {
+    Write-Host "This script requires PowerShell 5.0 or higher. You are currently running $($PSVersionTable.PSVersion)." -ForegroundColor Red
+    Write-Host "Please update your PowerShell version to proceed." -ForegroundColor Red
+    Start-Sleep -Seconds 10
+    exit 1
+}
+
+# Verify you are running on Windows 10 (or Windows Server 2016) or higher
+$OsInfo = Get-CimInstance -Class Win32_OperatingSystem
+if ([int]($OsInfo).BuildNumber -lt 10240) {
+    Write-Host "This script is designed for Windows 10 or higher. You are running $($OsInfo.Caption) (Build $($OsInfo.BuildNumber))." -ForegroundColor Red
+    Write-Host "Running on an unsupported OS may have unintended consequences." -ForegroundColor Yellow
+    Write-Host "The script will exit in 10 seconds." -ForegroundColor Red
+    Start-Sleep -Seconds 10
+    exit 1
+}
+
 # Self-elevate the script if required
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
     if ([int](Get-CimInstance -Class Win32_OperatingSystem | Select-Object -ExpandProperty BuildNumber) -ge 6000) {
@@ -334,8 +352,7 @@ else {
 Invoke-Task -Description 'Resetting network adapters (Winsock, TCP/IP, DNS cache, IP release/renew)...' -ScriptBlock {
     netsh.exe winsock reset
     netsh.exe int ip reset
-    ipconfig.exe /release
-    ipconfig.exe /renew
+    ipconfig.exe /release; ipconfig.exe /renew
     ipconfig.exe /flushdns
 }
 
@@ -363,8 +380,8 @@ Invoke-Task -Description "Optimizing drive $WindowsDriveLetter..." -ScriptBlock 
         catch {
             # With the rebuild of the WMI, this may require some waiting
             $null = 'rescan' | diskpart.exe
-            Write-HostTimestamp "Could not get physical disk information. Retrying in 60 seconds... ($retries retries remaining)" -ForegroundColor Yellow
-            Start-Sleep -Seconds 60
+            Write-HostTimestamp "Could not get physical disk information. Retrying in 15 seconds... ($retries retries remaining)" -ForegroundColor Yellow
+            Start-Sleep -Seconds 15
             $retries--
         }
     }
@@ -383,6 +400,7 @@ Invoke-Task -Description "Optimizing drive $WindowsDriveLetter..." -ScriptBlock 
         }
     } else {
         Write-HostTimestamp "Could not get physical disk information. Skipping disk optimization." -ForegroundColor Yellow
+        Write-HostTimestamp 'Please consider re-running script with "$ResetWMI" flag enabled to correct this issue.' -ForegroundColor Cyan
     }
 }
 
