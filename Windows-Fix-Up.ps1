@@ -91,6 +91,9 @@ function Invoke-Task {
 
 # Start of the Fix Up Script
 Write-HostTimestamp "Running Windows Fix Up on $($env:ComputerName)..." -Foreground Yellow
+if ((Get-CimInstance Win32_ComputerSystem).BootupState -like "Fail*") {
+    Write-Host "> You are currently in Safe Mode. Some parts of this script may fail to run." -ForegroundColor Red
+}
 Write-Host $LineBreak
 
 if ($Unattended) {
