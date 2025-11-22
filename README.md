@@ -126,3 +126,11 @@ Windows Fast Startup doesn't fully shut down the system. Instead, it hibernates 
 *   **Fixes Driver State Issues:** Because drivers are fully re-initialized on a cold boot, this can resolve odd hardware behavior. Note that on the first restart after disabling hibernation, display settings (like resolution or multi-monitor arrangement) may temporarily change before correcting themselves.
 *   **Frees Up Disk Space:** Deletes the `hiberfil.sys` file, reclaiming several gigabytes of space on your system drive.
 *   **Aids Dual-Booting:** Prevents file system corruption issues when accessing the Windows partition from another operating system (like Linux).
+
+### Does This Script Work?
+
+Yes, though this won't fix every possible error, it addresses the most common Windows issues to improve overall performance. You may need to run the script twice to ensure all fixes apply correctly. If issues persist, wait 24 hours before running it again. Windows requires time to complete specific background tasks and maintenance cycles before certain repairs take effect.
+
+### Will This Remove Viruses?
+
+This process may repair the built-in Windows Defender service. However, if you suspect an active malware infection, do not rely on this fix alone. Verify that Windows Defender is currently running, then scan your system with a reputable second-opinion scanner such as the [ESET Online Scanner](https://download.eset.com/com/eset/tools/online_scanner/latest/esetonlinescanner.exe) or [Malwarebytes Free Scanner](https://www.malwarebytes.com/solutions/virus-scanner) to ensure nothing was missed.
