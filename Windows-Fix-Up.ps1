@@ -158,7 +158,8 @@ if ($DisableBrandBloat) {
         if ($ServiceBrands) {
             ForEach ($ServiceBrand in $ServiceBrands) {
                 Write-Host "- $($ServiceBrand.DisplayName) - $($ServiceBrand.Name)"
-                $ServiceBrand | Stop-Service -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
+                $ServiceBrand | Stop-Service -ErrorAction SilentlyContinue
+                $ServiceBrand | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
             }
         } else {
             Write-HostTimestamp "No computer brand services to disable." -ForegroundColor Yellow
