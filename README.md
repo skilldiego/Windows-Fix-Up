@@ -21,16 +21,25 @@ This PowerShell script automates a sequence of common Windows repair and mainten
 
 ## How to Run This Script
 
-1.  **Save the Script:** Save the script file as `Windows-Fix-Up.ps1` on your computer.
-2.  **Run with PowerShell:** Right-click the `Windows-Fix-Up.ps1` file and select **"Run with PowerShell"**.
-3.  **Administrator Prompt:** If you are not already in an administrative session, a User Account Control (UAC) window will appear. Click **Yes** to allow the script to run with administrative privileges.
-4.  **Execution Policy (If Needed):** If you encounter an error about script execution being disabled, you may need to change the execution policy. Open a new PowerShell window **as an Administrator** and run the following command:
-    ```powershell
-    Set-ExecutionPolicy Bypass -Force
+The easiest and recommended way to run this script is by using the `Run-Windows-Fix-Up.bat` file. It automatically handles administrator elevation and PowerShell execution policies.
+
+### Recommended Method: Using the Batch File
+
+1.  **Download Files:** Make sure both `Run-Windows-Fix-Up.bat` and `Windows-Fix-Up.ps1` are saved in the **same folder**.
+2.  **Run the Batch File:** Double-click the `Run-Windows-Fix-Up.bat` file.
+3.  **Administrator Prompt:** A User Account Control (UAC) window will appear asking for administrative privileges. Click **Yes**.
+4.  **Follow Prompts:** The script will open in a new window and guide you through the rest of the process.
+
+### Running with Parameters (from Command Line)
+
+To use command-line parameters (like `-Unattended` or `-AutoReboot`), you must run the batch file from a Command Prompt or PowerShell terminal.
+
+1.  Open Command Prompt or PowerShell.
+2.  Navigate to the directory where you saved the files (e.g., `cd C:\Users\YourUser\Downloads`).
+3.  Run the batch file with your desired parameters. For example:
+    ```shell
+    .\Run-Windows-Fix-Up.bat -Unattended -AutoReboot -DisableBrandBloat
     ```
-    Then, try running the script again. For security, you can revert this change after the script is finished by running `Set-ExecutionPolicy Default -Force`.
-5.  **Confirmation:** The script will display a summary of its actions and ask for your confirmation. Type `Y` and press `Enter` to begin.
-    *   When run interactively, it will ask if you want to **automatically restart** when the script is complete. Type `Y` or `N` and press Enter. The script will then proceed with its tasks.
 
 ## Command-Line Parameters
 

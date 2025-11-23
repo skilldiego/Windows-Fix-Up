@@ -2,7 +2,8 @@
 # This script automates a sequence of common Windows repair and maintenance tasks. It is designed to be a comprehensive
 # "fix-it" tool for resolving system instability, update failures, application problems, and file system corruption.
 # -------------------------------------------------
-# How to Run This Script:
+# How to Run .PS1 Script with PowerShell:
+# NOTE: It is recommended to use the "Run-Windows-Fix-Up.bat" to invoke this script. However, you can run the .PS1 directly if needed.
 # 1.  Open PowerShell as an Administrator: Right-click your Start Menu and select "Terminal (Admin)" or search for "Windows PowerShell" and run as administrator.
 # 2.  Enable Script Execution (if needed): If this is your first time running a PowerShell script, execute:
 #     Set-ExecutionPolicy Bypass -Force
@@ -52,6 +53,9 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     } 
 }
 
+# Add a Window Title
+$Host.UI.RawUI.WindowTitle = "Windows Fix Up - Running as Administrator"
+
 # --- Start Logging ---
 # Create a log file in the same directory as the script
 $LogFile = Join-Path -Path $PSScriptRoot -ChildPath "Windows-Fix-Up_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').log"
@@ -95,7 +99,7 @@ Write-HostTimestamp "Running Windows Fix Up on $($env:ComputerName)..." -Foregro
 if ((Get-CimInstance Win32_ComputerSystem).BootupState -like "Fail*") {
     Write-Host "> You are currently in Safe Mode. Some parts of this script may fail to run." -ForegroundColor Red
 }
-if ($PSBoundParameters.Keys){
+if ($PSBoundParameters.Keys -ne $IsNullOrWhiteSpace){
     Write-HostTimestamp 'The following parameters are enabled...' -ForegroundColor Cyan
     ForEach ($Parameter in $PSBoundParameters.Keys) {
         Write-Host "- $Parameter"
