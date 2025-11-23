@@ -16,7 +16,8 @@ param(
     [switch]$Unattended, # Runs the script without any user prompts. It will not ask for confirmation to start.
     [switch]$AutoReboot, # Automatically configures the script to restart the computer upon completion.
     [switch]$ResetWMI,    # Forces a rebuild of the WMI repository without attempting to salvage it first.
-    [switch]$DisableHibernation # Disables hibernation and fast boot.
+    [switch]$DisableHibernation, # Disables hibernation and fast boot.
+    [switch]$DisableBrandBloat # Disables services for Dell, HP, and etc.
 )
 
 # Verify this is running on PowerShell 5 or higher
@@ -94,6 +95,12 @@ Write-HostTimestamp "Running Windows Fix Up on $($env:ComputerName)..." -Foregro
 if ((Get-CimInstance Win32_ComputerSystem).BootupState -like "Fail*") {
     Write-Host "> You are currently in Safe Mode. Some parts of this script may fail to run." -ForegroundColor Red
 }
+if ($PSBoundParameters.Keys){
+    Write-HostTimestamp 'The following parameters are enabled...' -ForegroundColor Cyan
+    ForEach ($Parameter in $PSBoundParameters.Keys) {
+        Write-Host "- $Parameter"
+    }
+}
 Write-Host $LineBreak
 
 if ($Unattended) {
@@ -133,6 +140,30 @@ $WindowsDriveLetter = $System32Path.Substring(0, 2)
 if (-not (Test-Path $WindowsDriveLetter)) {
     Write-HostTimestamp "STOPPING SCRIPT: Unable to find $WindowsDriveLetter" -ForegroundColor Red
     Start-Sleep -Seconds 10; exit 1
+}
+
+if ($DisableBrandBloat) {
+    $Brands = (
+        "HP",
+        "Dell",
+        "ASUS",
+        "Lenovo",
+        "Acer"
+    )
+    Invoke-Task -Description "Disabling startup services by common computer brands..." -ScriptBlock {
+        $ServiceBrands = @()
+        forEach ($Brand in $Brands) {
+            $ServiceBrands += Get-Service | Where-Object { $_.StartType -ne 'Disabled' -and $_.DisplayName -match "\b$Brand\b"}
+        }
+        if ($ServiceBrands) {
+            ForEach ($ServiceBrand in $ServiceBrands) {
+                Write-Host "- $($ServiceBrand.DisplayName) - $($ServiceBrand.Name)"
+                $ServiceBrand | Stop-Service -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
+            }
+        } else {
+            Write-HostTimestamp "No computer brand services to disable." -ForegroundColor Yellow
+        }
+    }
 }
 
 # Verify and Salvage WMI Repository
