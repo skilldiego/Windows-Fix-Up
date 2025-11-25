@@ -120,6 +120,16 @@ The script performs the following actions in sequence to repair and optimize you
 17. **Final Restart**
     *   If you agreed to the automatic restart at the beginning or used the `-AutoReboot` parameter, the script will initiate a 60-second countdown before rebooting. Otherwise, it will remind you to restart manually.
 
+### Does This Script Work?
+
+Yes, though this won't fix every possible error, it addresses the most common Windows issues to improve overall performance. You may need to run the script twice to ensure all fixes apply correctly. If issues persist, wait 24 hours before running it again. Windows requires time to complete specific background tasks and maintenance cycles before certain repairs take effect.
+
+### Will This Remove Viruses?
+
+This process may repair the built-in Windows Defender service. However, if you suspect an active malware infection, do not rely on this fix alone. Verify that Windows Defender is currently running, then scan your system with a reputable second-opinion scanner such as the [ESET Online Scanner](https://download.eset.com/com/eset/tools/online_scanner/latest/esetonlinescanner.exe) or [Malwarebytes Free Scanner](https://www.malwarebytes.com/solutions/virus-scanner) to ensure nothing was missed.
+
+## Troubleshooting
+
 ### Why Disable Hibernation and Fast Startup?
 
 > [!NOTE]
@@ -133,10 +143,66 @@ Windows Fast Startup doesn't fully shut down the system. Instead, it hibernates 
 *   **Frees Up Disk Space:** Deletes the `hiberfil.sys` file, reclaiming several gigabytes of space on your system drive.
 *   **Aids Dual-Booting:** Prevents file system corruption issues when accessing the Windows partition from another operating system (like Linux).
 
-### Does This Script Work?
+### DISM /RestoreHealth Failed
+If the standard restore fails due to connectivity or corruption issues with Windows Update, you will need to switch to a local source. By pointing DISM to a clean Windows ISO, you provide a verified set of files to repair the system image manually.
 
-Yes, though this won't fix every possible error, it addresses the most common Windows issues to improve overall performance. You may need to run the script twice to ensure all fixes apply correctly. If issues persist, wait 24 hours before running it again. Windows requires time to complete specific background tasks and maintenance cycles before certain repairs take effect.
+#### Phase 1: Preparation
+Before running the command, you must have a valid source file (`install.wim` or `install.esd`) that matches your installed Windows version exactly.
 
-### Will This Remove Viruses?
+1. Check your Windows Version:
+    * Open Command Prompt or PowerShell.
+    * Type `winver` and press Enter.
+    * Note your Version (e.g., 23H2) and OS Build (e.g., 22631.xxxx). Your local source must be the same version or newer.
 
-This process may repair the built-in Windows Defender service. However, if you suspect an active malware infection, do not rely on this fix alone. Verify that Windows Defender is currently running, then scan your system with a reputable second-opinion scanner such as the [ESET Online Scanner](https://download.eset.com/com/eset/tools/online_scanner/latest/esetonlinescanner.exe) or [Malwarebytes Free Scanner](https://www.malwarebytes.com/solutions/virus-scanner) to ensure nothing was missed.
+2. Get the Source (ISO):
+    * If you don't have a Windows ISO, download one using the [Microsoft Media Creation Tool](https://www.microsoft.com/software-download/).
+    * Mount the ISO: Right-click the ISO file and select Mount. This will create a virtual DVD drive (e.g., Drive `E:`).
+3. Locate the Install File:
+    * Open the mounted drive in File Explorer.
+    * Go to the `sources` folder.
+    * Look for a large file named `install.wim` OR `install.esd`.
+    * *Note: `install.esd` is more common in consumer downloads; `install.wim` is common in enterprise/business media.*
+
+4. Find the Correct Index Number:
+    * A single ISO often contains multiple editions (Home, Pro, Education). You must tell DISM which one to use.
+    * Open Command Prompt as Administrator.
+    * Run the following command (replace `E:` with your mounted ISO drive letter):
+        ```cmd
+        dism /Get-WimInfo /WimFile:E:\sources\install.wim
+        ```
+        *(If you have an `.esd` file, change `install.wim` to `install.esd` in the command above.)*
+    * Look at the output. Find the Index number for the Edition you are running (e.g., if you are running Windows 11 Pro, and "Windows 11 Pro" is Index 6, remember Index 6).
+
+#### Phase 2: The Repair Command
+Choose the syntax below that matches the file type you found (`.wim` or `.esd`).
+
+**Option A: If using `install.wim`**
+
+Run this command in an Admin Command Prompt. Replace `E:` with your ISO drive letter and `1` with the Index number you found in Phase 1.
+```cmd
+DISM /Online /Cleanup-Image /RestoreHealth /Source:WIM:E:\sources\install.wim:1 /LimitAccess
+```
+**Option B: If using `install.esd`**
+
+Run this command in an Admin Command Prompt. Replace `E:` with your ISO drive letter and `1` with the Index number you found in Phase 1.
+```cmd
+DISM /Online /Cleanup-Image /RestoreHealth /Source:ESD:E:\sources\install.esd:1 /LimitAccess
+```
+
+**Key Parameters Explained:**
+* `/Source`: Specifies the location of the known good files.
+* `WIM:` / `ESD:`: Tells DISM exactly what file format to read.
+* `:1` (The number at the end): The Index number of your Windows Edition.
+* `/LimitAccess`: Crucial. It prevents DISM from trying to contact Windows Update, ensuring it only uses the local file you provided.
+
+#### Phase 3: Verification
+1. Wait for completion: The process usually pauses at 62.3% or 84.9%. This is normal. Let it finish.
+2. Run SFC: Once DISM finishes successfully, run the System File Checker to apply the final repairs:
+    ```cmd
+    sfc /scannow
+    ```
+#### Troubleshooting DISM Errors
+Error 0x800f081f: "The source files could not be found."
+* Cause 1: You pointed to the wrong Index. (e.g., You have Windows Pro installed, but you pointed DISM to the Index for Windows Home).
+* Cause 2: The ISO version is too old. If your installed Windows has recent updates (e.g., Build 19045) but your ISO is old (e.g., Build 19041), the repair will fail because the ISO doesn't have the newer files your system expects.
+* Fix: Ensure you download the absolute latest ISO using the Media Creation Tool, which will include the latest major updates.

@@ -242,20 +242,56 @@ Invoke-Task -Description 'Scanning and repairing system files with SFC...' -Scri
 
 # Clean up WinSxS
 Invoke-Task -Description 'Cleaning up the component store (WinSxS) with DISM...' -ScriptBlock {
-    DISM.exe /Online /Cleanup-Image /StartComponentCleanup /ResetBase
+    try {
+        DISM.exe /Online /Cleanup-Image /StartComponentCleanup /ResetBase
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+            throw "DISM operation failed with exit code $LASTEXITCODE"
+        }
+    }
+    catch {
+        Write-HostTimestamp "DISM error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Ignore this error..." -ForegroundColor Yellow
+    }
 }
 
 Invoke-Task -Description 'Checking system image health with DISM (/CheckHealth)...' -ScriptBlock {
-    DISM.exe /Online /Cleanup-Image /CheckHealth
+    try {
+        DISM.exe /Online /Cleanup-Image /CheckHealth
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+            throw "DISM operation failed with exit code $LASTEXITCODE"
+        }
+    }
+    catch {
+        Write-HostTimestamp "DISM error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Ignore this error..." -ForegroundColor Yellow
+    }
 }
 
 Invoke-Task -Description 'Scanning for component store corruption with DISM (/ScanHealth)...' -ScriptBlock {
-    DISM.exe /Online /Cleanup-Image /ScanHealth
+    try {
+        DISM.exe /Online /Cleanup-Image /ScanHealth
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+            throw "DISM operation failed with exit code $LASTEXITCODE"
+        }
+    }
+    catch {
+        Write-HostTimestamp "DISM error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Ignore this error..." -ForegroundColor Yellow
+    }
 }
 
 Invoke-Task -Description 'Repairing the system image with DISM (/RestoreHealth)...' -ScriptBlock {
     # NOTE: While the previous steps seem redundant, there have been certain fixes deployed by Microsoft that require /ScanHealth and /ScanHealth to run first before fixes are applied by /RestoreHealth
-    DISM.exe /Online /Cleanup-Image /RestoreHealth
+    try {
+        DISM.exe /Online /Cleanup-Image /RestoreHealth
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+            throw "DISM operation failed with exit code $LASTEXITCODE"
+        }
+    }
+    catch {
+        Write-HostTimestamp "DISM error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Consider downloading an ISO for $((Get-CimInstance Win32_OperatingSystem).Caption) and following the README.md for steps to fix this issue." -ForegroundColor Yellow
+    }
 }
 
 # Windows to run the System File Checker utility - Part 2
