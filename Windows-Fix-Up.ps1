@@ -18,7 +18,8 @@ param(
     [switch]$AutoReboot, # Automatically configures the script to restart the computer upon completion.
     [switch]$ResetWMI,    # Forces a rebuild of the WMI repository without attempting to salvage it first.
     [switch]$DisableHibernation, # Disables hibernation and fast boot.
-    [switch]$DisableBrandBloat # Disables services for Dell, HP, and etc.
+    [switch]$DisableBrandBloat, # Disables services for Dell, HP, and etc.
+    [switch]$RunDiskOptimization # Trims or defrags C: drive
 )
 
 # Verify this is running on PowerShell 5 or higher
@@ -139,38 +140,6 @@ if ($NoSystem32) {
     Start-Sleep -Seconds 10; exit 1
 }
 
-# Find drive letter of Windows
-$WindowsDriveLetter = $System32Path.Substring(0, 2)
-if (-not (Test-Path $WindowsDriveLetter)) {
-    Write-HostTimestamp "STOPPING SCRIPT: Unable to find $WindowsDriveLetter" -ForegroundColor Red
-    Start-Sleep -Seconds 10; exit 1
-}
-
-if ($DisableBrandBloat) {
-    $Brands = (
-        "HP",
-        "Dell",
-        "ASUS",
-        "Lenovo",
-        "Acer"
-    )
-    Invoke-Task -Description "Disabling startup services by common computer brands..." -ScriptBlock {
-        $ServiceBrands = @()
-        forEach ($Brand in $Brands) {
-            $ServiceBrands += Get-Service | Where-Object { $_.StartType -ne 'Disabled' -and $_.DisplayName -match "\b$Brand\b"}
-        }
-        if ($ServiceBrands) {
-            ForEach ($ServiceBrand in $ServiceBrands) {
-                Write-Host "- $($ServiceBrand.DisplayName) - $($ServiceBrand.Name)"
-                $ServiceBrand | Stop-Service -ErrorAction SilentlyContinue
-                $ServiceBrand | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
-            }
-        } else {
-            Write-HostTimestamp "No computer brand services to disable." -ForegroundColor Yellow
-        }
-    }
-}
-
 # Verify and Salvage WMI Repository
 Invoke-Task -Description 'Checking and repairing the WMI repository...' -ScriptBlock {
     try {
@@ -234,6 +203,38 @@ Invoke-Task -Description 'Checking and repairing the WMI repository...' -ScriptB
     }
 }
 
+# Find drive letter of Windows
+$WindowsDriveLetter = $System32Path.Substring(0, 2)
+if (-not (Test-Path $WindowsDriveLetter)) {
+    Write-HostTimestamp "STOPPING SCRIPT: Unable to find $WindowsDriveLetter" -ForegroundColor Red
+    Start-Sleep -Seconds 10; exit 1
+}
+
+if ($DisableBrandBloat) {
+    $Brands = (
+        "HP",
+        "Dell",
+        "ASUS",
+        "Lenovo",
+        "Acer"
+    )
+    Invoke-Task -Description "Disabling startup services by common computer brands..." -ScriptBlock {
+        $ServiceBrands = @()
+        forEach ($Brand in $Brands) {
+            $ServiceBrands += Get-Service | Where-Object { $_.StartType -ne 'Disabled' -and $_.DisplayName -match "\b$Brand\b"}
+        }
+        if ($ServiceBrands) {
+            ForEach ($ServiceBrand in $ServiceBrands) {
+                Write-Host "- $($ServiceBrand.DisplayName) - $($ServiceBrand.Name)"
+                $ServiceBrand | Stop-Service -ErrorAction SilentlyContinue
+                $ServiceBrand | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
+            }
+        } else {
+            Write-HostTimestamp "No computer brand services to disable." -ForegroundColor Yellow
+        }
+    }
+}
+
 # Windows to run the System File Checker utility - Part 1
 Invoke-Task -Description 'Scanning and repairing system files with SFC...' -ScriptBlock {
     sfc.exe /scannow
@@ -282,7 +283,8 @@ Invoke-Task -Description 'Configuring and running Disk Cleanup for all categorie
             Start-Sleep -Seconds 30
         }
     } until (($CleanmgrTime -eq (Get-Process -Name cleanmgr -ErrorAction SilentlyContinue).TotalProcessorTime) -and ($DismHostTime -eq (Get-Process -Name dismhost -ErrorAction SilentlyContinue).TotalProcessorTime))
-    Stop-Process -Name cleanmgr -Force
+    # Stopping this will stop dismhost as well
+    Stop-Process -Name cleanmgr -Force -ErrorAction SilentlyContinue
 }
 
 # Clearing print jobs and restarting print spooler
@@ -408,38 +410,40 @@ Invoke-Task -Description 'Scheduling a disk check (CHKDSK) for the next restart.
 }
 
 # Optimize Windows disk
-Invoke-Task -Description "Optimizing drive $WindowsDriveLetter..." -ScriptBlock {
-    $DriveLetterNoColon = $WindowsDriveLetter.Trim(':')
-    $Disk = $null
-    $retries = 5
-    while ($retries -gt 0 -and -not $Disk) {
-        try {
-            $Disk = Get-Partition -DriveLetter $DriveLetterNoColon -ErrorAction Stop | Get-Disk -ErrorAction Stop | Get-PhysicalDisk -ErrorAction Stop
+if ($RunDiskOptimization) {
+    Invoke-Task -Description "Optimizing drive $WindowsDriveLetter..." -ScriptBlock {
+        $DriveLetterNoColon = $WindowsDriveLetter.Trim(':')
+        $Disk = $null
+        $retries = 5
+        while ($retries -gt 0 -and -not $Disk) {
+            try {
+                $Disk = Get-Partition -DriveLetter $DriveLetterNoColon -ErrorAction Stop | Get-Disk -ErrorAction Stop | Get-PhysicalDisk -ErrorAction Stop
+            }
+            catch {
+                # With the rebuild of the WMI, this may require some waiting
+                $null = 'rescan' | diskpart.exe
+                Write-HostTimestamp "Could not get physical disk information. Retrying in 15 seconds... ($retries retries remaining)" -ForegroundColor Yellow
+                Start-Sleep -Seconds 15
+                $retries--
+            }
         }
-        catch {
-            # With the rebuild of the WMI, this may require some waiting
-            $null = 'rescan' | diskpart.exe
-            Write-HostTimestamp "Could not get physical disk information. Retrying in 15 seconds... ($retries retries remaining)" -ForegroundColor Yellow
-            Start-Sleep -Seconds 15
-            $retries--
-        }
-    }
 
-    if ($Disk) {
-        if ($Disk.MediaType -eq 'SSD') {
-            Write-HostTimestamp 'Drive is an SSD. Performing trim...'
-            Optimize-Volume -DriveLetter $DriveLetterNoColon -ReTrim -Verbose -ErrorAction Stop
+        if ($Disk) {
+            if ($Disk.MediaType -eq 'SSD') {
+                Write-HostTimestamp 'Drive is an SSD. Performing trim...'
+                Optimize-Volume -DriveLetter $DriveLetterNoColon -ReTrim -Verbose -ErrorAction Stop
+            }
+            elseif ($Disk.MediaType -eq 'HDD') {
+                Write-HostTimestamp 'Drive is an HDD. Performing defragmentation...'
+                Optimize-Volume -DriveLetter $DriveLetterNoColon -Defrag -Verbose -ErrorAction Stop
+            }
+            else {
+                Write-HostTimestamp 'Drive is unspecified. Skipping disk optimization.' -ForegroundColor Yellow
+            }
+        } else {
+            Write-HostTimestamp "Could not get physical disk information. Skipping disk optimization." -ForegroundColor Yellow
+            Write-HostTimestamp 'Please consider re-running script with "$ResetWMI" flag enabled to correct this issue.' -ForegroundColor Cyan
         }
-        elseif ($Disk.MediaType -eq 'HDD') {
-            Write-HostTimestamp 'Drive is an HDD. Performing defragmentation...'
-            Optimize-Volume -DriveLetter $DriveLetterNoColon -Defrag -Verbose -ErrorAction Stop
-        }
-        else {
-            Write-HostTimestamp 'Drive is unspecified. Skipping disk optimization.' -ForegroundColor Yellow
-        }
-    } else {
-        Write-HostTimestamp "Could not get physical disk information. Skipping disk optimization." -ForegroundColor Yellow
-        Write-HostTimestamp 'Please consider re-running script with "$ResetWMI" flag enabled to correct this issue.' -ForegroundColor Cyan
     }
 }
 

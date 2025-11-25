@@ -50,81 +50,74 @@ The script supports the following optional parameters for automation:
 *   `-ResetWMI`: Forces a rebuild of the WMI repository without attempting to salvage it first. This can be useful if you suspect deep-rooted WMI corruption.
 *   `-DisableHibernation`: Disables hibernation and fast startup by running `powercfg.exe /hibernate off`. See [Why Disable Hibernation and Fast Startup?](#why-disable-hibernation-and-fast-startup) for more details.
 *   `-DisableBrandBloat`: Disables startup services from common computer manufacturers (e.g., HP, Dell, ASUS, Lenovo, Acer) to reduce background processes.
-
-Example of an unattended run with automatic reboot:
-```powershell
-.\Windows-Fix-Up.ps1 -Unattended -AutoReboot -ResetWMI -DisableBrandBloat
-```
+*   `-RunDiskOptimization`: Performs a disk optimization on the C: drive. It will run a re-trim on an SSD or a defragmentation on an HDD.
 
 ## What the Script Does
 
 The script performs the following actions in sequence to repair and optimize your Windows installation.
 
-1.  **Disable Manufacturer Bloatware (Optional)**
-    *   If the `-DisableBrandBloat` parameter is used, the script will find, stop, and disable common services from manufacturers like HP, Dell, ASUS, Lenovo, and Acer. This helps reduce unnecessary background processes.
-
-2.  **WMI Repository Verification and Repair**
+1.  **WMI Repository Verification and Repair**
     *   Checks the health of the Windows Management Instrumentation (WMI) repository. If it is found to be inconsistent, the script first attempts to salvage it. If salvaging is unsuccessful, it proceeds to rebuild the repository to resolve issues with system management tools and services.
 
-3.  **System File Checker (SFC)**
+2.  **Disable Manufacturer Bloatware (Optional)**
+    *   If the `-DisableBrandBloat` parameter is used, the script will find, stop, and disable common services from manufacturers like HP, Dell, ASUS, Lenovo, and Acer. This helps reduce unnecessary background processes.
+
+3.  **System File Checker (SFC) - First Pass**
     *   Runs `sfc /scannow` to scan for and repair corrupted or missing Windows system files.
 
 4.  **DISM Component Store Cleanup & Repair**
     *   **Cleanup (`/StartComponentCleanup /ResetBase`):** Cleans up and compresses the component store (WinSxS folder) to save disk space.
     *   **Health Check (`/CheckHealth` & `/ScanHealth`):** Scans the Windows component store for corruption.
-    *   **Restore Health (`/RestoreHealth`):** Performs repair operations automatically using Windows Update to fix any detected corruption.
+    *   **Restore Health (`/RestoreHealth`):** Performs repair operations automatically, using Windows Update if necessary, to fix any detected corruption.
 
 5.  **System File Checker (SFC) - Second Pass**
     *   Runs `sfc /scannow` again to address any issues that may have been uncovered or made fixable by the DISM repairs.
 
 6.  **Disk Cleanup**
     *   Automates the Windows Disk Cleanup utility (`cleanmgr.exe`) to remove temporary files, system logs, old update files, and other unnecessary data. **The Downloads folder is explicitly excluded.**
-    *   The script includes a monitor to prevent the Disk Cleanup process from getting stuck indefinitely.
+    *   The script includes a monitor to prevent the Disk Cleanup process from getting stuck, which can happen. If it detects no activity for 30 seconds, it will forcefully close the process.
 
-7.  **Windows Update Module Installation**
-    *   Installs or updates the `PSWindowsUpdate` PowerShell module, which allows for advanced management of Windows Updates via the command line. It also ensures the required `NuGet` package provider is present.
-
-8.  **Print Spooler Reset**
+7.  **Print Spooler Reset**
     *   Stops the Print Spooler service, clears out any stuck print jobs from the `C:\Windows\System32\spool\PRINTERS` directory, and then restarts the service. This can resolve issues where printers are offline or jobs won't print.
 
-9.  **Windows Update Reset**
-    *   Uses the `Reset-WUComponents` command from the `PSWindowsUpdate` module to stop Windows Update services, rename the `SoftwareDistribution` and `catroot2` folders, and re-register necessary DLLs. This resolves many common update failures.
-
-10. **Microsoft Store Reset & Update**
+8. **Microsoft Store Reset & Update**
     *   Clears the Microsoft Store cache (`wsreset.exe`) to resolve problems with apps not downloading or launching.
     *   Triggers a scan for pending Microsoft Store app updates.
 
-11. **Re-register Windows Apps**
+9. **Re-register Windows Apps**
     *   Attempts to re-register all built-in and installed Microsoft Store (AppX) packages for all users. This can fix issues with modern apps that fail to start or function correctly.
 
-12. **Install Windows Updates**
-    *   Uses the `PSWindowsUpdate` module to check for, download, and install all available updates from Microsoft Update.
+10. **Install Windows Updates**
+    *   **Module Installation:** Installs or updates the `PSWindowsUpdate` PowerShell module, which allows for advanced management of Windows Updates via the command line. It also ensures the required `NuGet` package provider is present.
+    *   **Windows Update Reset:** Uses the `Reset-WUComponents` command from the `PSWindowsUpdate` module to stop Windows Update services, rename the `SoftwareDistribution` and `catroot2` folders, and re-register necessary DLLs. This resolves many common update failures.
+    *   **Update Installation:** Uses the `PSWindowsUpdate` module to check for, download, and install all available updates from Microsoft Update.
 
-13. **Upgrade Applications with Winget**
+11. **Upgrade Applications with Winget**
     *   If the Windows Package Manager (`winget`) is available and the script is not running as the SYSTEM account, it will attempt to upgrade all installed applications silently. It runs twice to handle dependencies or failed initial attempts.
 
-14. **Network Stack Reset**
+12. **Network Stack Reset**
     *   Resets the network configuration to resolve common connectivity issues:
         *   Resets the Winsock Catalog (`netsh winsock reset`).
         *   Resets the TCP/IP stack (`netsh int ip reset`).
         *   Releases and renews the IP address configuration (`ipconfig /release` & `ipconfig /renew`).
         *   Flushes the DNS resolver cache (`ipconfig /flushdns`).
 
-15. **Disable Hibernation (Optional)**
+13. **Disable Hibernation (Optional)**
     *   If the `-DisableHibernation` parameter is used, this step will turn off hibernation, delete the `hiberfil.sys` file, and disable Windows Fast Startup.
 
-16. **Disk Check (CHKDSK)**
-    *   Schedules a comprehensive disk check (`chkdsk /f /r`) to run on the C: drive during the next system restart. This finds and repairs file system errors and scans for bad sectors.
+14. **Disk Check (CHKDSK)**
+    *   Schedules a comprehensive disk check (`chkdsk /f /r /offlinescanandfix`) to run on the C: drive during the next system restart. This finds and repairs file system errors and scans for bad sectors.
 
-17. **Disk Optimization**
+15. **Disk Optimization (Optional)**
+    *   This step only runs if the `-RunDiskOptimization` parameter is used.
     *   Checks the media type of the system drive.
     *   If it's an SSD, it performs a re-trim operation (`Optimize-Volume -ReTrim`).
     *   If it's an HDD, it performs a defragmentation (`Optimize-Volume -Defrag`).
 
-18. **Windows Search Index Reset**
+16. **Windows Search Index Reset**
     *   Stops and temporarily disables the Windows Search service, deletes the index database files (`Windows.db`) to clear out corruption, and then re-enables and restarts the service to allow it to rebuild the index from scratch in the background.
 
-19. **Final Restart**
+17. **Final Restart**
     *   If you agreed to the automatic restart at the beginning or used the `-AutoReboot` parameter, the script will initiate a 60-second countdown before rebooting. Otherwise, it will remind you to restart manually.
 
 ### Why Disable Hibernation and Fast Startup?
