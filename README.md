@@ -1,7 +1,7 @@
 # Windows Fix-Up Script
 
 > [!NOTE]
-> This script was born out of the necessity for one IT professional to find a lazy-yet-effective way to fix the recurring computer problems of friends and family. Think of it as the "turn it off and on again" of Windows repair, but on steroids. While it's generally safe and has saved countless hours of phone support, please exercise caution when running it in a production or enterprise environment.
+> This script was born out of the necessity for one IT professional to find a lazy-yet-effective way to fix the recurring computer problems of friends and family. Think of this as the 'shotgun' approach to Windows repair. It is not designed to isolate a root cause, it is a blunt instrument intended simply to force Windows back into a working state. While it's generally safe and has saved countless hours of phone support, please exercise caution when running it in a production or enterprise environment.
 
 This PowerShell script automates a sequence of common Windows repair and maintenance tasks. It is designed to be a comprehensive "fix-it" tool for resolving system instability, update failures, application problems, and file system corruption.
 
