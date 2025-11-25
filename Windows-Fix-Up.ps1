@@ -19,7 +19,8 @@ param(
     [switch]$ResetWMI,    # Forces a rebuild of the WMI repository without attempting to salvage it first.
     [switch]$DisableHibernation, # Disables hibernation and fast boot.
     [switch]$DisableBrandBloat, # Disables services for Dell, HP, and etc.
-    [switch]$RunDiskOptimization # Trims or defrags C: drive
+    [switch]$RunDiskOptimization, # Trims or defrags C: drive
+    [switch]$ResetNetwork # Reset TCP/IP stack and release and renew IP assuming you're using DHCP
 )
 
 # Verify this is running on PowerShell 5 or higher
@@ -140,6 +141,13 @@ if ($NoSystem32) {
     Start-Sleep -Seconds 10; exit 1
 }
 
+# Find drive letter of Windows
+$WindowsDriveLetter = $System32Path.Substring(0, 2)
+if (-not (Test-Path $WindowsDriveLetter)) {
+    Write-HostTimestamp "STOPPING SCRIPT: Unable to find $WindowsDriveLetter" -ForegroundColor Red
+    Start-Sleep -Seconds 10; exit 1
+}
+
 # Verify and Salvage WMI Repository
 Invoke-Task -Description 'Checking and repairing the WMI repository...' -ScriptBlock {
     try {
@@ -203,13 +211,6 @@ Invoke-Task -Description 'Checking and repairing the WMI repository...' -ScriptB
     }
 }
 
-# Find drive letter of Windows
-$WindowsDriveLetter = $System32Path.Substring(0, 2)
-if (-not (Test-Path $WindowsDriveLetter)) {
-    Write-HostTimestamp "STOPPING SCRIPT: Unable to find $WindowsDriveLetter" -ForegroundColor Red
-    Start-Sleep -Seconds 10; exit 1
-}
-
 if ($DisableBrandBloat) {
     $Brands = (
         "HP",
@@ -232,6 +233,16 @@ if ($DisableBrandBloat) {
         } else {
             Write-HostTimestamp "No computer brand services to disable." -ForegroundColor Yellow
         }
+    }
+}
+
+# Resetting network stack
+if ($ResetNetwork) {
+    Invoke-Task -Description 'Resetting network adapters (Winsock, TCP/IP, DNS cache, IP release/renew)...' -ScriptBlock {
+        ipconfig.exe /flushdns
+        netsh.exe winsock reset
+        netsh.exe int ip reset
+        ipconfig.exe /release; ipconfig.exe /renew
     }
 }
 
@@ -423,14 +434,6 @@ elseif ([Security.Principal.WindowsIdentity]::GetCurrent().IsSystem) {
 }
 else {
     Write-HostTimestamp 'Winget is not installed or not in PATH. Skipping Winget upgrades.' -ForegroundColor Yellow
-}
-
-# Resetting network stack
-Invoke-Task -Description 'Resetting network adapters (Winsock, TCP/IP, DNS cache, IP release/renew)...' -ScriptBlock {
-    netsh.exe winsock reset
-    netsh.exe int ip reset
-    ipconfig.exe /release; ipconfig.exe /renew
-    ipconfig.exe /flushdns
 }
 
 # Disable Hibernation and Fast Boot

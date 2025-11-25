@@ -51,6 +51,7 @@ The script supports the following optional parameters for automation:
 *   `-DisableHibernation`: Disables hibernation and fast startup by running `powercfg.exe /hibernate off`. See [Why Disable Hibernation and Fast Startup?](#why-disable-hibernation-and-fast-startup) for more details.
 *   `-DisableBrandBloat`: Disables startup services from common computer manufacturers (e.g., HP, Dell, ASUS, Lenovo, Acer) to reduce background processes.
 *   `-RunDiskOptimization`: Performs a disk optimization on the C: drive. It will run a re-trim on an SSD or a defragmentation on an HDD.
+*   `-ResetNetwork`: Resets the network stack (Winsock, TCP/IP), flushes the DNS cache, and renews the IP address.
 
 ## What the Script Does
 
@@ -62,45 +63,45 @@ The script performs the following actions in sequence to repair and optimize you
 2.  **Disable Manufacturer Bloatware (Optional)**
     *   If the `-DisableBrandBloat` parameter is used, the script will find, stop, and disable common services from manufacturers like HP, Dell, ASUS, Lenovo, and Acer. This helps reduce unnecessary background processes.
 
-3.  **System File Checker (SFC) - First Pass**
+3.  **Network Stack Reset (Optional)**
+    *   If the `-ResetNetwork` parameter is used, this step resets the network configuration to resolve common connectivity issues:
+        *   Resets the Winsock Catalog (`netsh winsock reset`).
+        *   Resets the TCP/IP stack (`netsh int ip reset`).
+        *   Flushes the DNS resolver cache (`ipconfig /flushdns`).
+        *   Releases and renews the IP address configuration (`ipconfig /release` & `ipconfig /renew`).
+
+4.  **System File Checker (SFC) - First Pass**
     *   Runs `sfc /scannow` to scan for and repair corrupted or missing Windows system files.
 
-4.  **DISM Component Store Cleanup & Repair**
+5.  **DISM Component Store Cleanup & Repair**
     *   **Cleanup (`/StartComponentCleanup /ResetBase`):** Cleans up and compresses the component store (WinSxS folder) to save disk space.
     *   **Health Check (`/CheckHealth` & `/ScanHealth`):** Scans the Windows component store for corruption.
     *   **Restore Health (`/RestoreHealth`):** Performs repair operations automatically, using Windows Update if necessary, to fix any detected corruption.
 
-5.  **System File Checker (SFC) - Second Pass**
+6.  **System File Checker (SFC) - Second Pass**
     *   Runs `sfc /scannow` again to address any issues that may have been uncovered or made fixable by the DISM repairs.
 
-6.  **Disk Cleanup**
+7.  **Disk Cleanup**
     *   Automates the Windows Disk Cleanup utility (`cleanmgr.exe`) to remove temporary files, system logs, old update files, and other unnecessary data. **The Downloads folder is explicitly excluded.**
     *   The script includes a monitor to prevent the Disk Cleanup process from getting stuck, which can happen. If it detects no activity for 30 seconds, it will forcefully close the process.
 
-7.  **Print Spooler Reset**
+8.  **Print Spooler Reset**
     *   Stops the Print Spooler service, clears out any stuck print jobs from the `C:\Windows\System32\spool\PRINTERS` directory, and then restarts the service. This can resolve issues where printers are offline or jobs won't print.
 
-8. **Microsoft Store Reset & Update**
-    *   Clears the Microsoft Store cache (`wsreset.exe`) to resolve problems with apps not downloading or launching.
+9. **Microsoft Store Reset & Update**
+    *   Clears the Microsoft Store cache non-interactively (`wsreset.exe -i`) to resolve problems with apps not downloading or launching.
     *   Triggers a scan for pending Microsoft Store app updates.
 
-9. **Re-register Windows Apps**
+10. **Re-register Windows Apps**
     *   Attempts to re-register all built-in and installed Microsoft Store (AppX) packages for all users. This can fix issues with modern apps that fail to start or function correctly.
 
-10. **Install Windows Updates**
+11. **Install Windows Updates**
     *   **Module Installation:** Installs or updates the `PSWindowsUpdate` PowerShell module, which allows for advanced management of Windows Updates via the command line. It also ensures the required `NuGet` package provider is present.
     *   **Windows Update Reset:** Uses the `Reset-WUComponents` command from the `PSWindowsUpdate` module to stop Windows Update services, rename the `SoftwareDistribution` and `catroot2` folders, and re-register necessary DLLs. This resolves many common update failures.
-    *   **Update Installation:** Uses the `PSWindowsUpdate` module to check for, download, and install all available updates from Microsoft Update.
+    *   **Update Installation:** Uses the `PSWindowsUpdate` module to check for, download, and install all available updates from Microsoft Update, including for other Microsoft products.
 
-11. **Upgrade Applications with Winget**
+12. **Upgrade Applications with Winget**
     *   If the Windows Package Manager (`winget`) is available and the script is not running as the SYSTEM account, it will attempt to upgrade all installed applications silently. It runs twice to handle dependencies or failed initial attempts.
-
-12. **Network Stack Reset**
-    *   Resets the network configuration to resolve common connectivity issues:
-        *   Resets the Winsock Catalog (`netsh winsock reset`).
-        *   Resets the TCP/IP stack (`netsh int ip reset`).
-        *   Releases and renews the IP address configuration (`ipconfig /release` & `ipconfig /renew`).
-        *   Flushes the DNS resolver cache (`ipconfig /flushdns`).
 
 13. **Disable Hibernation (Optional)**
     *   If the `-DisableHibernation` parameter is used, this step will turn off hibernation, delete the `hiberfil.sys` file, and disable Windows Fast Startup.
@@ -120,6 +121,7 @@ The script performs the following actions in sequence to repair and optimize you
 17. **Final Restart**
     *   If you agreed to the automatic restart at the beginning or used the `-AutoReboot` parameter, the script will initiate a 60-second countdown before rebooting. Otherwise, it will remind you to restart manually.
 
+## Additional Information
 ### Does This Script Work?
 
 Yes, though this won't fix every possible error, it addresses the most common Windows issues to improve overall performance. You may need to run the script twice to ensure all fixes apply correctly. If issues persist, wait 24 hours before running it again. Windows requires time to complete specific background tasks and maintenance cycles before certain repairs take effect.
@@ -127,8 +129,6 @@ Yes, though this won't fix every possible error, it addresses the most common Wi
 ### Will This Remove Viruses?
 
 This process may repair the built-in Windows Defender service. However, if you suspect an active malware infection, do not rely on this fix alone. Verify that Windows Defender is currently running, then scan your system with a reputable second-opinion scanner such as the [ESET Online Scanner](https://download.eset.com/com/eset/tools/online_scanner/latest/esetonlinescanner.exe) or [Malwarebytes Free Scanner](https://www.malwarebytes.com/solutions/virus-scanner) to ensure nothing was missed.
-
-## Troubleshooting
 
 ### Why Disable Hibernation and Fast Startup?
 
@@ -142,6 +142,8 @@ Windows Fast Startup doesn't fully shut down the system. Instead, it hibernates 
 *   **Fixes Driver State Issues:** Because drivers are fully re-initialized on a cold boot, this can resolve odd hardware behavior. Note that on the first restart after disabling hibernation, display settings (like resolution or multi-monitor arrangement) may temporarily change before correcting themselves.
 *   **Frees Up Disk Space:** Deletes the `hiberfil.sys` file, reclaiming several gigabytes of space on your system drive.
 *   **Aids Dual-Booting:** Prevents file system corruption issues when accessing the Windows partition from another operating system (like Linux).
+
+## Troubleshooting
 
 ### DISM /RestoreHealth Failed
 If the standard restore fails due to connectivity or corruption issues with Windows Update, you will need to switch to a local source. By pointing DISM to a clean Windows ISO, you provide a verified set of files to repair the system image manually.
@@ -176,18 +178,18 @@ Before running the command, you must have a valid source file (`install.wim` or 
 #### Phase 2: The Repair Command
 Choose the syntax below that matches the file type you found (`.wim` or `.esd`).
 
-**Option A: If using `install.wim`**
+##### Option A: If using `install.wim`
 
-Run this command in an Admin Command Prompt. Replace `E:` with your ISO drive letter and `1` with the Index number you found in Phase 1.
-```cmd
-DISM /Online /Cleanup-Image /RestoreHealth /Source:WIM:E:\sources\install.wim:1 /LimitAccess
-```
-**Option B: If using `install.esd`**
+- Run this command in an Admin Command Prompt. Replace `E:` with your ISO drive letter and `1` with the Index number you found in Phase 1.
+    ```cmd
+    DISM /Online /Cleanup-Image /RestoreHealth /Source:WIM:E:\sources\install.wim:1 /LimitAccess
+    ```
+##### Option B: If using `install.esd`
 
-Run this command in an Admin Command Prompt. Replace `E:` with your ISO drive letter and `1` with the Index number you found in Phase 1.
-```cmd
-DISM /Online /Cleanup-Image /RestoreHealth /Source:ESD:E:\sources\install.esd:1 /LimitAccess
-```
+- Run this command in an Admin Command Prompt. Replace `E:` with your ISO drive letter and `1` with the Index number you found in Phase 1.
+    ```cmd
+    DISM /Online /Cleanup-Image /RestoreHealth /Source:ESD:E:\sources\install.esd:1 /LimitAccess
+    ```
 
 **Key Parameters Explained:**
 * `/Source`: Specifies the location of the known good files.
