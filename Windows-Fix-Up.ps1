@@ -211,6 +211,22 @@ Invoke-Task -Description 'Checking and repairing the WMI repository...' -ScriptB
     }
 }
 
+# Check if we can connect to Microsoft.com
+Invoke-Task -Description 'Checking if we can connect to Microsoft.com...' -ScriptBlock {
+    try {
+        $MicrosoftRequest = Invoke-WebRequest "https://www.microsoft.com/" -UseBasicParsing -ErrorAction Stop
+    }
+    catch {
+        Write-HostTimestamp "Error occurred when connecting to Microsoft.com." -ForegroundColor Red
+    }
+    if ($MicrosoftRequest.StatusCode -eq 200) {
+        Write-HostTimestamp "Successfully connected to Microsoft.com."
+    } else {
+        Write-HostTimestamp "Unable to successfully to connect to Microsoft.com. Some parts of this script may fail to run." -ForegroundColor Red
+        Write-Host "If you believe this is an error with the network, re-run with `"-ResetNetwork`" flag enabled."
+    }
+}
+
 if ($DisableBrandBloat) {
     $Brands = (
         "HP",
@@ -316,11 +332,11 @@ Invoke-Task -Description 'Configuring and running Disk Cleanup for all categorie
     $RegPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
     Get-ChildItem -Path $RegPath | ForEach-Object {
         if ($_.PSChildName -ne 'DownloadsFolder') {
-            Set-ItemProperty -Path $_.PSPath -Name 'StateFlags0001' -Value 2 -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $_.PSPath -Name 'StateFlags0333' -Value 2 -ErrorAction SilentlyContinue
         }
     }
     # Run Disk Cleanup with the configured settings
-    Start-Process -FilePath 'cleanmgr.exe' -ArgumentList '/sagerun:1' -WindowStyle Hidden
+    Start-Process -FilePath 'cleanmgr.exe' -ArgumentList '/sagerun:333' -WindowStyle Hidden
     # Due to cleanmgr commonly getting stuck, the following has been added as a workaround
     # Check to see if cleanmgr is doing anything
     do {
