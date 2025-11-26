@@ -14,13 +14,18 @@
 # -------------------------------------------------
 # Parameters for the script
 param(
-    [switch]$Unattended, # Runs the script without any user prompts. It will not ask for confirmation to start.
-    [switch]$AutoReboot, # Automatically configures the script to restart the computer upon completion.
-    [switch]$ResetWMI,    # Forces a rebuild of the WMI repository without attempting to salvage it first.
+    [switch]$Unattended, # Runs the script without any user prompts. It will not ask for confirmation to start
+    [switch]$AutoReboot, # Automatically configures the script to restart the computer upon completion
+    [switch]$ResetWMI,    # Forces a rebuild of the WMI repository without attempting to salvage it first
     [switch]$DisableHibernation, # Disables hibernation and fast boot.
     [switch]$DisableBrandBloat, # Disables services for Dell, HP, and etc.
     [switch]$RunDiskOptimization, # Trims or defrags C: drive
-    [switch]$ResetNetwork # Reset TCP/IP stack and release and renew IP assuming you're using DHCP
+    [switch]$RunDiskCleanup, # Runs Disk Cleanup excluding Downloads folder
+    [switch]$ResetNetwork, # Reset TCP/IP stack and release and renew IP assuming you're using DHCP
+    [switch]$ResetWindowsUpdate, # Reset components of Windows Update
+    [switch]$InstallWindowsUpdates, # Installs all Windows Updates
+    [switch]$UpdateAllWinGet, # Uses WinGet to update any apps that are supported
+    [switch]$All # CAUTION: Overrides all parameters and enables them
 )
 
 # Verify this is running on PowerShell 5 or higher
@@ -101,12 +106,23 @@ Write-HostTimestamp "Running Windows Fix Up on $($env:ComputerName)..." -Foregro
 if ((Get-CimInstance Win32_ComputerSystem).BootupState -like "Fail*") {
     Write-Host "> You are currently in Safe Mode. Some parts of this script may fail to run." -ForegroundColor Red
 }
-if ($PSBoundParameters.Keys -ne $IsNullOrWhiteSpace){
-    Write-HostTimestamp 'The following parameters are enabled...' -ForegroundColor Cyan
-    ForEach ($Parameter in $PSBoundParameters.Keys) {
-        Write-Host "- $Parameter"
+if ($All){
+    Write-HostTimestamp 'ALL parameters are enabled...' -ForegroundColor Cyan
+    forEach ($Parameter in ($MyInvocation.MyCommand.Parameters.Keys)) {
+        if ($Parameter -ne "All") {
+            Write-Host "- $Parameter"
+            Set-Variable -Name $Parameter -Value $true
+        }
+    }
+} else {
+    if ($PSBoundParameters.Keys -ne $IsNullOrWhiteSpace){
+        Write-HostTimestamp 'The following parameters are enabled...' -ForegroundColor Cyan
+        ForEach ($Parameter in $PSBoundParameters.Keys) {
+            Write-Host "- $Parameter"
+        }
     }
 }
+
 Write-Host $LineBreak
 
 if ($Unattended) {
@@ -327,27 +343,29 @@ Invoke-Task -Description 'Running SFC again to fix any remaining issues...' -Scr
 }
 
 # Run Disk Cleanup
-Invoke-Task -Description 'Configuring and running Disk Cleanup for all categories...' -ScriptBlock {
-    # Set registry keys to select all items for Disk Cleanup
-    $RegPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
-    Get-ChildItem -Path $RegPath | ForEach-Object {
-        if ($_.PSChildName -ne 'DownloadsFolder') {
-            Set-ItemProperty -Path $_.PSPath -Name 'StateFlags0333' -Value 2 -ErrorAction SilentlyContinue
+if ($RunDiskCleanup) {
+    Invoke-Task -Description 'Configuring and running Disk Cleanup for all categories...' -ScriptBlock {
+        # Set registry keys to select all items for Disk Cleanup
+        $RegPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
+        Get-ChildItem -Path $RegPath | ForEach-Object {
+            if ($_.PSChildName -ne 'DownloadsFolder') {
+                Set-ItemProperty -Path $_.PSPath -Name 'StateFlags0333' -Value 2 -ErrorAction SilentlyContinue
+            }
         }
+        # Run Disk Cleanup with the configured settings
+        Start-Process -FilePath 'cleanmgr.exe' -ArgumentList '/sagerun:333' -WindowStyle Hidden
+        # Due to cleanmgr commonly getting stuck, the following has been added as a workaround
+        # Check to see if cleanmgr is doing anything
+        do {
+            $CleanmgrTime = (Get-Process -Name cleanmgr -ErrorAction SilentlyContinue).TotalProcessorTime
+            $DismHostTime = (Get-Process -Name dismhost -ErrorAction SilentlyContinue).TotalProcessorTime
+            if ($CleanmgrTime -or $DismHostTime) {
+                Start-Sleep -Seconds 30
+            }
+        } until (($CleanmgrTime -eq (Get-Process -Name cleanmgr -ErrorAction SilentlyContinue).TotalProcessorTime) -and ($DismHostTime -eq (Get-Process -Name dismhost -ErrorAction SilentlyContinue).TotalProcessorTime))
+        # Stopping this will stop dismhost as well
+        Stop-Process -Name cleanmgr -Force -ErrorAction SilentlyContinue
     }
-    # Run Disk Cleanup with the configured settings
-    Start-Process -FilePath 'cleanmgr.exe' -ArgumentList '/sagerun:333' -WindowStyle Hidden
-    # Due to cleanmgr commonly getting stuck, the following has been added as a workaround
-    # Check to see if cleanmgr is doing anything
-    do {
-        $CleanmgrTime = (Get-Process -Name cleanmgr -ErrorAction SilentlyContinue).TotalProcessorTime
-        $DismHostTime = (Get-Process -Name dismhost -ErrorAction SilentlyContinue).TotalProcessorTime
-        if ($CleanmgrTime -or $DismHostTime) {
-            Start-Sleep -Seconds 30
-        }
-    } until (($CleanmgrTime -eq (Get-Process -Name cleanmgr -ErrorAction SilentlyContinue).TotalProcessorTime) -and ($DismHostTime -eq (Get-Process -Name dismhost -ErrorAction SilentlyContinue).TotalProcessorTime))
-    # Stopping this will stop dismhost as well
-    Stop-Process -Name cleanmgr -Force -ErrorAction SilentlyContinue
 }
 
 # Clearing print jobs and restarting print spooler
@@ -367,30 +385,35 @@ Invoke-Task -Description 'Running fixes on the Print Spooler...' -ScriptBlock {
 }
 
 # Install Windows Update Module
-Invoke-Task -Description "Installing the 'PSWindowsUpdate' PowerShell module..." -ScriptBlock {
-    if (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue) {
-        Write-HostTimestamp "NuGet package provider is installed..."
-    } else {
-        Write-HostTimestamp "NuGet package provider needs to be installed..."
-        Install-PackageProvider -Name NuGet -Force -ForceBootstrap
+if ($ResetWindowsUpdate -or $InstallWindowsUpdates) {
+    Invoke-Task -Description "Installing the 'PSWindowsUpdate' PowerShell module..." -ScriptBlock {
+        if (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue) {
+            Write-HostTimestamp 'NuGet package provider is installed...'
+        }
+        else {
+            Write-HostTimestamp 'NuGet package provider needs to be installed...'
+            Install-PackageProvider -Name NuGet -Force -ForceBootstrap
+        }
+        if (Get-Module -ListAvailable -Name PSWindowsUpdate) {
+            Write-HostTimestamp 'PSWindowsUpdate module is already installed. Checking for updates...'
+            Update-Module -Name PSWindowsUpdate -Force -Confirm:$false
+        }
+        else {
+            Install-Module -Name PSWindowsUpdate -Force -Confirm:$false
+        }
+        Import-Module -Name PSWindowsUpdate -Force
     }
-    if (Get-Module -ListAvailable -Name PSWindowsUpdate) {
-        Write-HostTimestamp "PSWindowsUpdate module is already installed. Checking for updates..."
-        Update-Module -Name PSWindowsUpdate -Force -Confirm:$false
-    }
-    else {
-        Install-Module -Name PSWindowsUpdate -Force -Confirm:$false
-    }
-    Import-Module -Name PSWindowsUpdate -Force
 }
 
 # Reset Windows Update Services
-Invoke-Task -Description 'Resetting Windows Update components...' -ScriptBlock {
-    if (Get-Command Reset-WUComponents -ErrorAction SilentlyContinue) {
-        Reset-WUComponents
-    }
-    else {
-        Write-HostTimestamp "Command 'Reset-WUComponents' not found. Skipping Windows Update component reset." -ForegroundColor Yellow
+if ($ResetWindowsUpdate) {
+    Invoke-Task -Description 'Resetting Windows Update components...' -ScriptBlock {
+        if (Get-Command Reset-WUComponents -ErrorAction SilentlyContinue) {
+            Reset-WUComponents
+        }
+        else {
+            Write-HostTimestamp "Command 'Reset-WUComponents' not found. Skipping Windows Update component reset." -ForegroundColor Yellow
+        }
     }
 }
 
@@ -428,7 +451,8 @@ else {
 }
 
 # Install Windows Updates
-Invoke-Task -Description 'Checking for and installing Windows Updates...' -ScriptBlock {
+if ($InstallWindowsUpdates){
+    Invoke-Task -Description 'Checking for and installing Windows Updates...' -ScriptBlock {
     if (Get-Command Get-WindowsUpdate -ErrorAction SilentlyContinue) {
         Get-WindowsUpdate -AcceptAll -Install -IgnoreReboot -MicrosoftUpdate
     }
@@ -436,20 +460,23 @@ Invoke-Task -Description 'Checking for and installing Windows Updates...' -Scrip
         Write-HostTimestamp "Command 'Get-WindowsUpdate' not found. Skipping Windows Update installation." -ForegroundColor Yellow
     }
 }
+}
 
 # Install latest version of apps
-if ((Get-Command winget.exe -ErrorAction SilentlyContinue) -and (-not ([Security.Principal.WindowsIdentity]::GetCurrent().IsSystem))) {
-    Invoke-Task -Description 'Upgrading all applications with Winget...' -ScriptBlock {
-        winget.exe upgrade --silent --all --accept-package-agreements --accept-source-agreements --force
-        Write-HostTimestamp 'Re-running again in case we ran into problems in the last go around.'
-        winget.exe upgrade --silent --all --accept-package-agreements --accept-source-agreements --force
+if ($UpdateAllWinGet) {
+    if ((Get-Command winget.exe -ErrorAction SilentlyContinue) -and (-not ([Security.Principal.WindowsIdentity]::GetCurrent().IsSystem))) {
+        Invoke-Task -Description 'Upgrading all applications with Winget...' -ScriptBlock {
+            winget.exe upgrade --silent --all --accept-package-agreements --accept-source-agreements --force
+            Write-HostTimestamp 'Re-running again in case we ran into problems in the last go around.'
+            winget.exe upgrade --silent --all --accept-package-agreements --accept-source-agreements --force
+        }
     }
-}
-elseif ([Security.Principal.WindowsIdentity]::GetCurrent().IsSystem) {
-    Write-HostTimestamp 'Script is running as SYSTEM. Skipping Winget upgrades as it requires a user context.' -ForegroundColor Yellow
-}
-else {
-    Write-HostTimestamp 'Winget is not installed or not in PATH. Skipping Winget upgrades.' -ForegroundColor Yellow
+    elseif ([Security.Principal.WindowsIdentity]::GetCurrent().IsSystem) {
+        Write-HostTimestamp 'Script is running as SYSTEM. Skipping Winget upgrades as it requires a user context.' -ForegroundColor Yellow
+    }
+    else {
+        Write-HostTimestamp 'Winget is not installed or not in PATH. Skipping Winget upgrades.' -ForegroundColor Yellow
+    }
 }
 
 # Disable Hibernation and Fast Boot

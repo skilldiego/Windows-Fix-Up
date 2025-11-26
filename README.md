@@ -11,8 +11,8 @@ This PowerShell script automates a sequence of common Windows repair and mainten
 *   **Creates a Log File:** The script automatically creates a detailed log file (e.g., `Windows-Fix-Up_2023-10-27_14-30-00.log`) in the same folder where the script is located.
 *   **Time-Consuming:** The entire process can take **several hours** to complete, depending on the state of your system.
 *   **File Deletion:** The script will run Windows Disk Cleanup and automatically select **all** categories for cleaning, **except for the `Downloads` folder**. Ensure any important files are backed up from temporary locations.
-*   **Third-Party Module:** The script will automatically install the `PSWindowsUpdate` module from the PowerShell Gallery to manage Windows Updates.
-*   **System Resets:** Several system components will be reset to their default configurations, including:
+*   **Third-Party Module:** If you opt-in to the Windows Update steps, the script will automatically install the `PSWindowsUpdate` module from the PowerShell Gallery.
+*   **System Resets:** Several system components may be reset to their default configurations, including:
     *   Windows Management Instrumentation (WMI) repository.
     *   Windows Update components.
     *   Microsoft Store cache.
@@ -50,15 +50,20 @@ The script supports the following optional parameters for automation:
 *   `-ResetWMI`: Forces a rebuild of the WMI repository without attempting to salvage it first. This can be useful if you suspect deep-rooted WMI corruption.
 *   `-DisableHibernation`: Disables hibernation and fast startup by running `powercfg.exe /hibernate off`. See [Why Disable Hibernation and Fast Startup?](#why-disable-hibernation-and-fast-startup) for more details.
 *   `-DisableBrandBloat`: Disables startup services from common computer manufacturers (e.g., HP, Dell, ASUS, Lenovo, Acer) to reduce background processes.
-*   `-RunDiskOptimization`: Performs a disk optimization on the C: drive. It will run a re-trim on an SSD or a defragmentation on an HDD.
 *   `-ResetNetwork`: Resets the network stack (Winsock, TCP/IP), flushes the DNS cache, and renews the IP address.
+*   `-RunDiskCleanup`: Runs the Windows Disk Cleanup utility, clearing all categories except for the `Downloads` folder.
+*   `-RunDiskOptimization`: Performs a disk optimization on the C: drive. It will run a re-trim on an SSD or a defragmentation on an HDD.
+*   `-ResetWindowsUpdate`: Resets the components of Windows Update by stopping services and renaming the `SoftwareDistribution` and `catroot2` folders.
+*   `-InstallWindowsUpdates`: Installs all available Windows Updates using the `PSWindowsUpdate` module.
+*   `-UpdateAllWinGet`: Uses the Windows Package Manager (`winget`) to upgrade all installed applications that support it.
+*   `-All`: **CAUTION:** Enables all available optional parameters.
 
 ## What the Script Does
 
 The script performs the following actions in sequence to repair and optimize your Windows installation.
 
 1.  **WMI Repository Verification and Repair**
-    *   Checks the health of the Windows Management Instrumentation (WMI) repository. If it is found to be inconsistent, the script first attempts to salvage it. If salvaging is unsuccessful, it proceeds to rebuild the repository to resolve issues with system management tools and services.
+    *   Checks the health of the Windows Management Instrumentation (WMI) repository. If it is found to be inconsistent, the script first attempts to salvage it. If salvaging is unsuccessful or the `-ResetWMI` parameter is used, it proceeds to rebuild the repository to resolve issues with system management tools and services.
 
 2.  **Disable Manufacturer Bloatware (Optional)**
     *   If the `-DisableBrandBloat` parameter is used, the script will find, stop, and disable common services from manufacturers like HP, Dell, ASUS, Lenovo, and Acer. This helps reduce unnecessary background processes.
@@ -81,11 +86,11 @@ The script performs the following actions in sequence to repair and optimize you
 6.  **System File Checker (SFC) - Second Pass**
     *   Runs `sfc /scannow` again to address any issues that may have been uncovered or made fixable by the DISM repairs.
 
-7.  **Disk Cleanup**
-    *   Automates the Windows Disk Cleanup utility (`cleanmgr.exe`) to remove temporary files, system logs, old update files, and other unnecessary data. **The Downloads folder is explicitly excluded.**
+7.  **Disk Cleanup (Optional)**
+    *   If the `-RunDiskCleanup` parameter is used, this step automates the Windows Disk Cleanup utility (`cleanmgr.exe`) to remove temporary files, system logs, old update files, and other unnecessary data. **The Downloads folder is explicitly excluded.**
     *   The script includes a monitor to prevent the Disk Cleanup process from getting stuck, which can happen. If it detects no activity for 30 seconds, it will forcefully close the process.
 
-8.  **Print Spooler Reset**
+8.  **Print Spooler Reset** 
     *   Stops the Print Spooler service, clears out any stuck print jobs from the `C:\Windows\System32\spool\PRINTERS` directory, and then restarts the service. This can resolve issues where printers are offline or jobs won't print.
 
 9. **Microsoft Store Reset & Update**
@@ -96,18 +101,18 @@ The script performs the following actions in sequence to repair and optimize you
     *   Attempts to re-register all built-in and installed Microsoft Store (AppX) packages for all users. This can fix issues with modern apps that fail to start or function correctly.
 
 11. **Install Windows Updates**
-    *   **Module Installation:** Installs or updates the `PSWindowsUpdate` PowerShell module, which allows for advanced management of Windows Updates via the command line. It also ensures the required `NuGet` package provider is present.
-    *   **Windows Update Reset:** Uses the `Reset-WUComponents` command from the `PSWindowsUpdate` module to stop Windows Update services, rename the `SoftwareDistribution` and `catroot2` folders, and re-register necessary DLLs. This resolves many common update failures.
-    *   **Update Installation:** Uses the `PSWindowsUpdate` module to check for, download, and install all available updates from Microsoft Update, including for other Microsoft products.
+    *   **Module Installation (Optional):** If `-ResetWindowsUpdate` or `-InstallWindowsUpdates` is used, the script installs or updates the `PSWindowsUpdate` PowerShell module, which allows for advanced management of Windows Updates. It also ensures the required `NuGet` package provider is present.
+    *   **Windows Update Reset (Optional):** If the `-ResetWindowsUpdate` parameter is used, the script uses the `Reset-WUComponents` command from the `PSWindowsUpdate` module to stop Windows Update services, rename the `SoftwareDistribution` and `catroot2` folders, and re-register necessary DLLs. This resolves many common update failures.
+    *   **Update Installation (Optional):** If the `-InstallWindowsUpdates` parameter is used, the script uses the `PSWindowsUpdate` module to check for, download, and install all available updates from Microsoft Update, including for other Microsoft products.
 
-12. **Upgrade Applications with Winget**
-    *   If the Windows Package Manager (`winget`) is available and the script is not running as the SYSTEM account, it will attempt to upgrade all installed applications silently. It runs twice to handle dependencies or failed initial attempts.
+12. **Upgrade Applications with Winget (Optional)**
+    *   If the `-UpdateAllWinGet` parameter is used, the Windows Package Manager (`winget`) is available, and the script is not running as the SYSTEM account, it will attempt to upgrade all installed applications silently. It runs twice to handle dependencies or failed initial attempts.
 
 13. **Disable Hibernation (Optional)**
     *   If the `-DisableHibernation` parameter is used, this step will turn off hibernation, delete the `hiberfil.sys` file, and disable Windows Fast Startup.
 
 14. **Disk Check (CHKDSK)**
-    *   Schedules a comprehensive disk check (`chkdsk /f /r /offlinescanandfix`) to run on the C: drive during the next system restart. This finds and repairs file system errors and scans for bad sectors.
+    *   Schedules a comprehensive disk check (`chkdsk /f /r /offlinescanandfix`) to run on the system drive during the next system restart. This finds and repairs file system errors and scans for bad sectors.
 
 15. **Disk Optimization (Optional)**
     *   This step only runs if the `-RunDiskOptimization` parameter is used.
@@ -124,7 +129,10 @@ The script performs the following actions in sequence to repair and optimize you
 ## Additional Information
 ### Does This Script Work?
 
-Yes, though this won't fix every possible error, it addresses the most common Windows issues to improve overall performance. You may need to run the script twice to ensure all fixes apply correctly. If issues persist, wait 24 hours before running it again. Windows requires time to complete specific background tasks and maintenance cycles before certain repairs take effect.
+Yes...though this won't fix every possible error, it addresses the most common Windows issues to improve overall performance. You may need to run the script twice to ensure all fixes apply correctly. If issues persist, wait 24 hours before running it again. Windows requires time to complete specific background tasks and maintenance cycles before certain repairs take effect.
+
+### Will This Script Break My Computer?
+Unlikely. The script is designed to repair Windows components, which involves resetting services and purging cache files. However, the default execution path is safe. Any functions identified as potentially aggressive or risky are strictly opt-in and must be explicitly triggered via command-line arguments.
 
 ### Will This Remove Viruses?
 
