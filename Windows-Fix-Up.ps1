@@ -134,8 +134,7 @@ if ($Unattended) {
 else {
     # Prompt user for confirmation
     Invoke-Task -Description 'Can take SEVERAL hours to complete and maybe required to be ran twice to completely fix issues.' -ScriptBlock {
-        Write-Host 'NOTE: This script will reset some Windows components to defaults and run Disk Cleanup clearing old files.' -ForegroundColor Yellow
-        Write-Host 'Please ensure you have backed up any important files...'
+        Write-Host 'NOTE: This script will reset some Windows components to default settings.' -ForegroundColor Yellow
         Write-Host
         if ($AutoReboot) { $Script:AutoRestart = 'y' } else { $Script:AutoRestart = Read-Host -Prompt 'Do you want to automatically restart when the script is finished? (Y/N)' }
     }
