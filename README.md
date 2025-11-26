@@ -5,20 +5,6 @@
 
 This PowerShell script automates a sequence of common Windows repair and maintenance tasks. It is designed to be a comprehensive "fix-it" tool for resolving system instability, update failures, application problems, and file system corruption.
 
-## ⚠️ Important Warnings
-
-*   **Run as Administrator:** This script requires administrative privileges to perform its tasks. It includes a self-elevation feature to prompt for administrator rights if not already running with them.
-*   **Creates a Log File:** The script automatically creates a detailed log file (e.g., `Windows-Fix-Up_2023-10-27_14-30-00.log`) in the same folder where the script is located.
-*   **Time-Consuming:** The entire process can take **several hours** to complete, depending on the state of your system.
-*   **File Deletion:** The script will run Windows Disk Cleanup and automatically select **all** categories for cleaning, **except for the `Downloads` folder**. Ensure any important files are backed up from temporary locations.
-*   **Third-Party Module:** If you opt-in to the Windows Update steps, the script will automatically install the `PSWindowsUpdate` module from the PowerShell Gallery.
-*   **System Resets:** Several system components may be reset to their default configurations, including:
-    *   Windows Management Instrumentation (WMI) repository.
-    *   Windows Update components.
-    *   Microsoft Store cache.
-    *   Network stack (Winsock, TCP/IP).
-*   **Restart Required:** A system restart is required to complete the disk check (CHKDSK). The script will ask you at the beginning if you want to restart automatically when it's done.
-
 ## How to Run This Script
 
 The easiest and recommended way to run this script is by using the `Run-Windows-Fix-Up.bat` file. It automatically handles administrator elevation and PowerShell execution policies.
@@ -132,7 +118,17 @@ The script performs the following actions in sequence to repair and optimize you
 Yes...though this won't fix every possible error, it addresses the most common Windows issues to improve overall performance. You may need to run the script twice to ensure all fixes apply correctly. If issues persist, wait 24 hours before running it again. Windows requires time to complete specific background tasks and maintenance cycles before certain repairs take effect.
 
 ### Will This Script Break My Computer?
+
 Unlikely. The script is designed to repair Windows components, which involves resetting services and purging cache files. However, the default execution path is safe. Any functions identified as potentially aggressive or risky are strictly opt-in and must be explicitly triggered via command-line arguments.
+
+### This Didn't Fix My Issue
+
+If the script didn't work, try these next steps:
+
+* Research your specific symptoms online, as your issue may be unique to your environment.
+* Some manufacturers require manual driver or firmware updates that scripts cannot handle.
+* This script addresses software only. If the underlying hardware is failing, troubleshooting will require physical diagnostics.
+* As a worst-case scenario, reinstall Windows to see if the issue is strictly software-related.
 
 ### Will This Remove Viruses?
 
