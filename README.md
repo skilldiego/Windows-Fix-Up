@@ -98,7 +98,7 @@ The script performs the following actions in sequence to repair and optimize you
     *   If the `-DisableHibernation` parameter is used, this step will turn off hibernation, delete the `hiberfil.sys` file, and disable Windows Fast Startup.
 
 14. **Disk Check (CHKDSK)**
-    *   Schedules a comprehensive disk check (`chkdsk /f /r /offlinescanandfix`) to run on the system drive during the next system restart. This finds and repairs file system errors and scans for bad sectors.
+    *   Schedules a comprehensive disk check (`chkdsk /f /r /x`) to run on the system drive during the next system restart. This finds and repairs file system errors and scans for bad sectors.
 
 15. **Disk Optimization (Optional)**
     *   This step only runs if the `-RunDiskOptimization` parameter is used.

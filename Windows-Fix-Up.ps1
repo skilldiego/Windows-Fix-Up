@@ -487,7 +487,7 @@ if ($DisableHibernation) {
 
 # Run check disk on need startup
 Invoke-Task -Description 'Scheduling a disk check (CHKDSK) for the next restart...' -ScriptBlock {
-    'y' | CHKDSK.exe $WindowsDriveLetter /F /V /R /offlinescanandfix
+    'y' | CHKDSK.exe $WindowsDriveLetter /F /R /X
 }
 
 # Optimize Windows disk
