@@ -31,18 +31,20 @@ To use command-line parameters (like `-Unattended` or `-AutoReboot`), you must r
 
 The script supports the following optional parameters for automation:
 
-*   `-Unattended`: Runs the script without any user prompts. It will not ask for confirmation to start.
-*   `-AutoReboot`: When used with `-Unattended`, this will automatically configure the script to restart the computer upon completion. If used without `-Unattended`, it pre-answers 'Y' to the automatic restart question.
-*   `-ResetWMI`: Forces a rebuild of the WMI repository without attempting to salvage it first. This can be useful if you suspect deep-rooted WMI corruption.
-*   `-DisableHibernation`: Disables hibernation and fast startup by running `powercfg.exe /hibernate off`. See [Why Disable Hibernation and Fast Startup?](#why-disable-hibernation-and-fast-startup) for more details.
-*   `-DisableBrandBloat`: Disables startup services from common computer manufacturers (e.g., HP, Dell, ASUS, Lenovo, Acer) to reduce background processes.
-*   `-ResetNetwork`: Resets the network stack (Winsock, TCP/IP), flushes the DNS cache, and renews the IP address.
-*   `-RunDiskCleanup`: Runs the Windows Disk Cleanup utility, clearing all categories except for the `Downloads` folder.
-*   `-RunDiskOptimization`: Performs a disk optimization on the C: drive. It will run a re-trim on an SSD or a defragmentation on an HDD.
-*   `-ResetWindowsUpdate`: Resets the components of Windows Update by stopping services and renaming the `SoftwareDistribution` and `catroot2` folders.
-*   `-InstallWindowsUpdates`: Installs all available Windows Updates using the `PSWindowsUpdate` module.
-*   `-UpdateAllWinGet`: Uses the Windows Package Manager (`winget`) to upgrade all installed applications that support it.
-*   `-All`: **CAUTION:** Enables all available optional parameters.
+| Parameter | Description |
+|---|---|
+| `-Unattended` | Runs the script without any user prompts. It will not ask for confirmation to start. |
+| `-AutoReboot` | When used with `-Unattended`, this will automatically configure the script to restart the computer upon completion. If used without `-Unattended`, it pre-answers 'Y' to the automatic restart question. |
+| `-ResetWMI` | Forces a rebuild of the WMI repository without attempting to salvage it first. This can be useful if you suspect deep-rooted WMI corruption. |
+| `-DisableHibernation` | Disables hibernation and fast startup by running `powercfg.exe /hibernate off`. See [Why Disable Hibernation and Fast Startup?](#why-disable-hibernation-and-fast-startup) for more details. |
+| `-DisableBrandBloat` | Disables startup services from common computer manufacturers (e.g., HP, Dell, ASUS, Lenovo, Acer) to reduce background processes. |
+| `-ResetNetwork` | Resets the network stack (Winsock, TCP/IP), flushes the DNS cache, and renews the IP address. |
+| `-RunDiskCleanup` | Runs the Windows Disk Cleanup utility, clearing all categories except for the `Downloads` folder. |
+| `-RunDiskOptimization` | Performs a disk optimization on the C: drive. It will run a re-trim on an SSD or a defragmentation on an HDD. |
+| `-ResetWindowsUpdate` | Resets the components of Windows Update by stopping services and renaming the `SoftwareDistribution` and `catroot2` folders. |
+| `-InstallWindowsUpdates` | Installs all available Windows Updates using the `PSWindowsUpdate` module. |
+| `-UpdateAllWinGet` | Uses the Windows Package Manager (`winget`) to upgrade all installed applications that support it. |
+| `-All` | **CAUTION:** Enables all available optional parameters. |
 
 ## What the Script Does
 
