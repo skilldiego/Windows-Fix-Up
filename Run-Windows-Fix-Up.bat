@@ -29,6 +29,18 @@ set "SCRIPT_DIR=%~dp0"
 :: Construct the full path to the PowerShell script.
 set "PS_SCRIPT=%SCRIPT_DIR%Windows-Fix-Up.ps1"
 
+:: Check if the script exists. If not, download it.
+IF NOT EXIST "%PS_SCRIPT%" (
+    ECHO Windows-Fix-Up.ps1 not found. Downloading from GitHub...
+    powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/skilldiego/Windows-Fix-Up/refs/heads/main/Windows-Fix-Up.ps1' -OutFile '%PS_SCRIPT%'"
+    IF NOT EXIST "%PS_SCRIPT%" (
+        ECHO Failed to download Windows-Fix-Up.ps1.
+        PAUSE
+        EXIT /B 1
+    )
+    ECHO Download complete.
+)
+
 :: Execute the PowerShell script.
 :: -ExecutionPolicy Bypass: Allows the script to run without changing the system-wide policy.
 :: -File: Specifies the script to run.
