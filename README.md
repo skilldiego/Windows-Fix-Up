@@ -44,6 +44,8 @@ The script supports the following optional parameters for automation:
 | `-ResetWindowsUpdate` | Resets the components of Windows Update by stopping services and renaming the `SoftwareDistribution` and `catroot2` folders. |
 | `-InstallWindowsUpdates` | Installs all available Windows Updates using the `PSWindowsUpdate` module. |
 | `-UpdateAllWinGet` | Uses the Windows Package Manager (`winget`) to upgrade all installed applications that support it. |
+| `-CleanupNetworking` | Performs a deep cleanup of networking devices (`netcfg -d`). This removes all network adapters and requires a reboot to reinstall them. **Forces a reboot.** |
+| `-SkipInteractive` | Skips the interactive selection menu. Useful if you want to run with specific parameters (or defaults) without navigating the menu, but still want to see the output. |
 | `-All` | **CAUTION:** Enables all available optional parameters. |
 
 ## What the Script Does
@@ -111,7 +113,10 @@ The script performs the following actions in sequence to repair and optimize you
 16. **Windows Search Index Reset**
     *   Stops and temporarily disables the Windows Search service, deletes the index database files (`Windows.db`) to clear out corruption, and then re-enables and restarts the service to allow it to rebuild the index from scratch in the background.
 
-17. **Final Restart**
+17. **Cleanup Networking Devices (Optional)**
+    *   If the `-CleanupNetworking` parameter is used, this runs `netcfg -d` to perform a hard reset on all networking components. This removes all network adapters (virtual and physical) and their settings. Windows will attempt to reinstall them upon the next reboot. **This forces an automatic reboot.**
+
+18. **Final Restart**
     *   If you agreed to the automatic restart at the beginning or used the `-AutoReboot` parameter, the script will initiate a 60-second countdown before rebooting. Otherwise, it will remind you to restart manually.
 
 ## Additional Information
