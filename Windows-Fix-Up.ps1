@@ -15,17 +15,30 @@
 # Parameters for the script
 param(
     [switch]$Unattended, # Runs the script without any user prompts. It will not ask for confirmation to start
-    [switch]$AutoReboot, # Automatically configures the script to restart the computer upon completion
-    [switch]$ResetWMI,    # Forces a rebuild of the WMI repository without attempting to salvage it first
-    [switch]$DisableHibernation, # Disables hibernation and fast boot.
-    [switch]$DisableBrandBloat, # Disables services for Dell, HP, and etc.
-    [switch]$RunDiskOptimization, # Trims or defrags C: drive
-    [switch]$RunDiskCleanup, # Runs Disk Cleanup excluding Downloads folder
-    [switch]$ResetNetwork, # Reset TCP/IP stack and release and renew IP assuming you're using DHCP
-    [switch]$ResetWindowsUpdate, # Reset components of Windows Update
-    [switch]$InstallWindowsUpdates, # Installs all Windows Updates
-    [switch]$UpdateAllWinGet, # Uses WinGet to update any apps that are supported
-    [switch]$All # CAUTION: Overrides all parameters and enables them
+    [Parameter(HelpMessage = 'Automatically restart upon completion')]
+    [switch]$AutoReboot,
+    [Parameter(HelpMessage = 'Forces a rebuild of the WMI repository')]
+    [switch]$ResetWMI,
+    [Parameter(HelpMessage = 'Disables hibernation and fast boot')]
+    [switch]$DisableHibernation,
+    [Parameter(HelpMessage = 'Disables services for Dell, HP, etc.')]
+    [switch]$DisableBrandBloat, 
+    [Parameter(HelpMessage = 'Trims or defrags C: drive')]
+    [switch]$RunDiskOptimization,
+    [Parameter(HelpMessage = 'Runs Disk Cleanup excluding Downloads folder')]
+    [switch]$RunDiskCleanup,
+    [Parameter(HelpMessage = 'Reset TCP/IP stack and release/renew IP')]
+    [switch]$ResetNetwork,
+    [Parameter(HelpMessage = 'Cleanup all networking devices. Will force a reboot after completion')]
+    [switch]$CleanupNetworking,
+    [Parameter(HelpMessage = 'Reset components of Windows Update')]
+    [switch]$ResetWindowsUpdate,
+    [Parameter(HelpMessage = 'Installs all Windows Updates')]
+    [switch]$InstallWindowsUpdates,
+    [Parameter(HelpMessage = 'Uses WinGet to update any apps that are supported')]
+    [switch]$UpdateAllWinGet,
+    [switch]$All, # CAUTION: Overrides all parameters and enables them
+    [switch]$SkipInteractive # Skips the interactive selection menu
 )
 
 # Verify this is running on PowerShell 5 or higher
@@ -102,10 +115,64 @@ function Invoke-Task {
 }
 
 # Start of the Fix Up Script
-Write-HostTimestamp "Running Windows Fix Up on $($env:ComputerName)..." -Foreground Yellow
-if ((Get-CimInstance Win32_ComputerSystem).BootupState -like "Fail*") {
-    Write-Host "> You are currently in Safe Mode. Some parts of this script may fail to run." -ForegroundColor Red
-}
+if (-not $Unattended -and -not $SkipInteractive) {
+    $Options = @()
+    foreach ($Key in $MyInvocation.MyCommand.Parameters.Keys) {
+        $Param = $MyInvocation.MyCommand.Parameters[$Key]
+        $HelpMessage = ($Param.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] }).HelpMessage
+        if (-not [string]::IsNullOrWhiteSpace($HelpMessage)) {
+            $Options += [PSCustomObject]@{ 
+                Name = $Key
+                Description = $HelpMessage
+                Selected = (Get-Variable -Name $Key -ErrorAction SilentlyContinue).Value
+            }
+        }
+    }
+
+    $Done = $false
+    $PadWidth = "$($Options.Count)".Length
+    while (-not $Done) {
+        Clear-Host
+        Write-HostTimestamp "Running Windows Fix Up on $($env:ComputerName)..." -Foreground Yellow
+        Write-Host "This script automates a sequence of common Windows repair and maintenance tasks."
+        Write-Host "It is designed to resolve system instability, update failures, and file system corruption."
+        Write-Host "This Can take SEVERAL hours to complete and maybe required to be ran twice to completely fix issues."
+        Write-Host "NOTE: This script will reset some Windows components to default settings."
+        Write-Host ""
+        if ((Get-CimInstance Win32_ComputerSystem).BootupState -like "Fail*") {
+            Write-Host "> You are currently in Safe Mode. Some parts of this script may fail to run." -ForegroundColor Red
+        }
+        Write-Host "Type the number(s) to toggle optional parameters (comma-separated), or press Enter to continue."
+        Write-Host ""
+        for ($i = 0; $i -lt $Options.Count; $i++) {
+            $opt = $Options[$i]
+            $mark = if ($opt.Selected) { "[X]" } else { "[ ]" }
+            $color = if ($opt.Selected) { "Green" } else { "White" }
+            $IndexStr = ($i + 1).ToString().PadLeft($PadWidth)
+            Write-Host "$IndexStr. $mark $($opt.Name) - $($opt.Description)" -ForegroundColor $color
+        }
+        Write-Host ""
+        $Selection = Read-Host "Selection"
+        if ([string]::IsNullOrWhiteSpace($Selection)) { $Done = $true }
+        else {
+            $Inputs = $Selection -split ','
+            foreach ($InputItem in $Inputs) {
+                $CleanInput = $InputItem.Trim()
+                if ($CleanInput -match '^\d+$') {
+                    $Index = [int]$CleanInput - 1
+                    if ($Index -ge 0 -and $Index -lt $Options.Count) {
+                        $Options[$Index].Selected = -not $Options[$Index].Selected
+                    }
+                }
+            }
+        }
+    }
+    foreach ($opt in $Options) {
+        Set-Variable -Name $opt.Name -Value $opt.Selected
+        if ($opt.Selected) { $PSBoundParameters[$opt.Name] = $true } elseif ($PSBoundParameters.ContainsKey($opt.Name)) { $PSBoundParameters.Remove($opt.Name) }
+    }
+}; $LineBreak
+
 if ($All){
     Write-HostTimestamp 'ALL parameters are enabled...' -ForegroundColor Cyan
     forEach ($Parameter in ($MyInvocation.MyCommand.Parameters.Keys)) {
@@ -115,7 +182,7 @@ if ($All){
         }
     }
 } else {
-    if ($PSBoundParameters.Keys -ne $IsNullOrWhiteSpace){
+    if ($PSBoundParameters.Count -gt 0){
         Write-HostTimestamp 'The following parameters are enabled...' -ForegroundColor Cyan
         ForEach ($Parameter in $PSBoundParameters.Keys) {
             Write-Host "- $Parameter"
@@ -127,17 +194,6 @@ Write-Host $LineBreak
 
 if ($Unattended) {
     Write-HostTimestamp 'Running in Unattended mode. User prompts will be skipped.' -ForegroundColor Cyan
-    if ($AutoReboot) {
-        $Script:AutoRestart = 'y'
-    }
-}
-else {
-    # Prompt user for confirmation
-    Invoke-Task -Description 'Can take SEVERAL hours to complete and maybe required to be ran twice to completely fix issues.' -ScriptBlock {
-        Write-Host 'NOTE: This script will reset some Windows components to default settings.' -ForegroundColor Yellow
-        Write-Host
-        if ($AutoReboot) { $Script:AutoRestart = 'y' } else { $Script:AutoRestart = Read-Host -Prompt 'Do you want to automatically restart when the script is finished? (Y/N)' }
-    }
 }
 
 # Change directory to System32 in case path is not set correctly
@@ -564,10 +620,19 @@ Invoke-Task -Description 'Clearing Windows Search Index...' -ScriptBlock {
     }
 }
 
+# Cleanup networking devices
+if ($CleanupNetworking) {
+    Invoke-Task -Description 'Cleaning up networking devices...' -ScriptBlock {
+        netcfg.exe /d
+        $AutoReboot = $true
+
+    }
+}
+
 # Done, restart when necessary
 Write-HostTimestamp 'Windows Fix Up completed!' -Foreground Green
 Write-Host 'A restart is required to complete the disk check (CHKDSK).'
-if ($Script:AutoRestart -in @('y', 'yes')) {
+if ($AutoReboot) {
     (60..1) | ForEach-Object {
         if ($_ -lt 10) {
             Write-HostTimestamp "Restart in $_ $(if ($_ -eq 1){'second'}else{'seconds'})" -ForegroundColor Yellow
