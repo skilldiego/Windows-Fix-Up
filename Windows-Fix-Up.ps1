@@ -142,7 +142,7 @@ if (-not $Unattended -and -not $SkipInteractive) {
         if ((Get-CimInstance Win32_ComputerSystem).BootupState -like "Fail*") {
             Write-Host "> You are currently in Safe Mode. Some parts of this script may fail to run." -ForegroundColor Red
         }
-        Write-Host "Type the number(s) to toggle optional parameters (comma-separated), or press Enter to continue."
+        Write-Host "Type the number(s) to toggle optional parameters (comma-separated), 'A' to enable all, or press Enter to continue."
         Write-Host ""
         for ($i = 0; $i -lt $Options.Count; $i++) {
             $opt = $Options[$i]
@@ -158,7 +158,10 @@ if (-not $Unattended -and -not $SkipInteractive) {
             $Inputs = $Selection -split ','
             foreach ($InputItem in $Inputs) {
                 $CleanInput = $InputItem.Trim()
-                if ($CleanInput -match '^\d+$') {
+                if ($CleanInput -eq 'a' -or $CleanInput -eq 'all') {
+                    foreach ($opt in $Options) { $opt.Selected = $true }
+                }
+                elseif ($CleanInput -match '^\d+$') {
                     $Index = [int]$CleanInput - 1
                     if ($Index -ge 0 -and $Index -lt $Options.Count) {
                         $Options[$Index].Selected = -not $Options[$Index].Selected
